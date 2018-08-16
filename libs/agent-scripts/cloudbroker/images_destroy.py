@@ -26,8 +26,12 @@ def action():
     images = ccl.image.search({'status': 'DELETED'}, size=0)[1:]
     scl = j.clients.osis.getNamespace('system')
     pcl = j.clients.portal.getByInstance('main')
-    grid_info = {}
     for image in images:
+        references = ccl.vmachine.count(
+            {"imageId": image["id"], "status": {"$ne": "DESTROYED"}}
+        )
+        if references:
+            return
         deletion_time = image['deletionTime']
         grid_id = image['gid']
         grid = scl.grid.get(grid_id)
@@ -35,9 +39,6 @@ def action():
         retention_period = grid_config.get('delete_retention_period')
         if current_time >= (deletion_time + retention_period):
             pcl.actors.cloudbroker.image.delete(image['id'], reason='Cleanup job', permanently=True)
-
-
-
 
 if __name__ == '__main__':
     action()
