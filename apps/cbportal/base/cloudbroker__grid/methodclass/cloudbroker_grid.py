@@ -147,6 +147,26 @@ class cloudbroker_grid(BaseActor):
         return bool(result["nModified"])
 
     @auth(groups=["level1", "level2", "level3"])
+    def listVersions(self, status=None, **kwargs):
+        query = dict()
+        if status:
+            query["status"] = status.upper()
+
+        versions = self.sysmodels.version.search(query, size=0)[1:]
+        return versions
+
+    @auth(groups=["level1", "level2", "level3"])
+    def deleteVersion(self, id, **kwargs):
+        version = self.sysmodels.version.searchOne({"id": id, "status": "ERROR"})
+        if not version:
+            raise exceptions.NotFound(
+                "Couldn't find version in state ERROR with id: {}".format(id)
+            )
+
+        result = self.sysmodels.version.deleteSearch({"id": id})
+        return bool(result)
+
+    @auth(groups=["level1", "level2", "level3"])
     def changeSettings(self, id, settings, **kwargs):
         if self.sysmodels.grid.count({"id": id}) == 0:
             raise exceptions.NotFound("No grid with id {} was found".format(id))

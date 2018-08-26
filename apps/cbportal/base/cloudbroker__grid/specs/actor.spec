@@ -89,3 +89,15 @@
         var:memory int,,amount of memory to provide @optional
         result: str
 
+
+    method:listVersions
+        """
+        list versions
+        """
+        var:status str,, filter by version status @optional
+
+    method:deleteVersion
+        """
+        Delete version by id
+        """
+        var:id int,, version id

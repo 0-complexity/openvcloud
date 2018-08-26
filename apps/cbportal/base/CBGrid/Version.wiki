@@ -1,17 +1,63 @@
 @usedefault
 @@title Software Versions
+h3. Software Versions
+
+{% if version -%}
+
+{% if current -%}
 {{versionselect}}
 {{actions:
 - display: Update environment
   action: '#updateenv'
+- display: Delete Version
+  action: /restmachine/cloudbroker/grid/deleteVersion
+  hide: true
 }}
-h3. JumpScale
-   * Core: {{repoversion: account:jumpscale7 repo:jumpscale_core7 provider:github}}
-   * Portal: {{repoversion: account:jumpscale7 repo:jumpscale_portal provider:github}}
+{% elif version.status == 'ERROR' -%}
+{{actions:
+- display: Delete Version
+  action: /restmachine/cloudbroker/grid/deleteVersion
+  data:
+    id: ${version.id}
+  navigateback: true
+}}
+{% endif -%}
 
-h3. OpenvCloud
-   * Core: {{repoversion: account:0-complexity repo:openvcloud provider:github}}
-   * G8VDC: {{repoversion: account:0-complexity repo:g8vdc provider:github}}
-   * Selfhealing: {{repoversion: account:0-complexity repo:selfhealing provider:github}}
+{{repoversion}}
+
+|*Id*|${version.id}|       
+|*Version*|${version.manifest.version}|
+|*Status*|${version.status}|
+|*Creation time*|{{ts:${version.creationTime}}}|
+|*Update time*|{{ts:${version.updateTime}}}|
+|*Manifest url*|${version.manifest.url}|
+
+h5. Openvcloud
+{% for repo in version.manifest.repos -%}
+{% if 'OpenvCloud' in repo.name -%}
+* [${repo.name}|${repo.url}]: (${repo.target.keys()[0]}: ${repo.target.values()[0]})
+{% endif -%}
+{% endfor -%}
+
+h5. JumpScale
+{% for repo in version.manifest.repos -%}
+{% if 'JumpScale' in repo.name -%}
+* [${repo.name}|${repo.url}]: (${repo.target.keys()[0]}: ${repo.target.values()[0]})
+{% endif -%}
+{% endfor -%}
 
 {{ovsversion}}
+
+{% if current -%}
+h2. Versions history
+||ID||Version||Creation time||Status||Delete||
+{% for version in history -%}
+|[${version.id}|?id=${version.id}]|${version.name}|{{ts: ${version.creationTime}}}|${version.status}|{% if version.status == 'ERROR' %} {{action deleterow:true id:'action-DeleteVersion' data-id:${version.id} class:'glyphicon glyphicon-remove'}}{% endif %}|
+{% else -%}
+| | | | | |
+{% endfor %}
+{% endif -%}
+
+{% else -%}
+Can't get software version details
+{% endif -%}
