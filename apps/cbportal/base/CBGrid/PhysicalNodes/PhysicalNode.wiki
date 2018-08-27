@@ -46,6 +46,24 @@ h1. Physical Node: ${node.name}
     label: Reason
 {% endif %}
 
+- display: IPMI actions
+  action: /restmachine/cloudbroker/node/applyIpmiAction
+  data:
+   nid: $$id
+  input:
+  - name: action
+    label: action
+    type: dropdown
+    values:
+    - label: "Power on"
+      value: "power_on"
+    - label: "Shutdown"
+      value: "shutdown"
+    - label: "Force shutdown"
+      value: "force_shutdown"
+    - label: "Reboot"
+      value: "reboot"
+
 - display: Decommission
   action: /restmachine/cloudbroker/node/decommission
   data:

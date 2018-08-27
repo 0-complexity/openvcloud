@@ -29,3 +29,10 @@
         """
         var:nid int,,nid of node
         var:vmaction str,, what to do with running vms move or stop @optional
+
+    method:applyIpmiAction
+        """
+        apply ipmi action on node
+        """
+        var:nid int,,nid of node
+        var:action str,, on of actions power_on shutdown force_shutdown reboot

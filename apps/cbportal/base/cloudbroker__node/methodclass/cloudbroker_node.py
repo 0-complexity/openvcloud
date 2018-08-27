@@ -99,7 +99,7 @@ class cloudbroker_node(BaseActor):
             j.apps.cloudbroker.computenode.enable(
                 stack["id"], node["gid"], message, **kwargs
             )
-            
+
         gid = j.application.whoAmI.gid
         self.cb.executeJumpscript(
             "greenitglobe", "check_node_version", gid=gid, nid=node["id"]
@@ -133,3 +133,24 @@ class cloudbroker_node(BaseActor):
         )
         if jobinfo["state"] == "ERROR":
             raise exceptions.Error("Failed to execute maintenance script")
+
+    @auth(groups=["level2", "level3"])
+    def applyIpmiAction(self, nid, action, **kwargs):
+        if action not in ["power_on", "shutdown", "force_shutdown", "reboot"]:
+            raise exceptions.BadRequest("Invalid action: {}".format(action))
+
+        node = self._getNode(nid)
+        nodename = node["name"].split(".")[0]
+        args = {"cmd": "node action {} --name {}".format(action, nodename)}
+        jobinfo = self.cb.executeJumpscript(
+            "greenitglobe",
+            "execute_installer_command",
+            role="controllernode",
+            gid=node["gid"],
+            args=args,
+        )
+
+        if jobinfo["state"] == "ERROR":
+            raise exceptions.Error(
+                "Failed to apply action: {} on node: {}".format(action, nodename)
+            )
