@@ -1,3 +1,5 @@
+set -o pipefail
+
 usage(){
     echo "Usage"
     echo "options:"
@@ -15,9 +17,9 @@ while true; do
   shift
 done
 
-
-LOGFILE="/tmp/${TESTSUITE}.log"
 protocol=${protocol:-https}
+CI_JOB_NAME=${CI_JOB_NAME:-${TESTSUITE}}
+LOGFILE="/tmp/${CI_JOB_NAME}.log"
 
 if [[ ${TESTSUITE} == "acl" ]] || [[ ${TESTSUITE} == "ovc" ]]; then
 
