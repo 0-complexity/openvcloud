@@ -1,7 +1,7 @@
 @usedefaults
 {{vmachine}}
 {% if name %}
-h2. Virtual Machine: ${name}
+h2. Virtual Machine: [${name}|/cbgrid/Virtual Machine?id=${id}]
 {% if status != "DESTROYED" %}
 
 {{include:vmachine_actions}}

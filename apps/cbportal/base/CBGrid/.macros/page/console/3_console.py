@@ -10,7 +10,6 @@ def main(j, args, params, tags, tasklet):
         pass
     if not isinstance(machineid, int):
         return params
-    models = j.apps.cloudapi.machines.models
     consoleurl = j.apps.cloudapi.machines.getConsoleUrl(int(machineid))
     parsedurl = urlparse(consoleurl)
     port = parsedurl.port
