@@ -6,7 +6,7 @@ Setting up an OpenvCloud cluster is done in following steps:
 - [Validate the configuration file](#validate-config)
 - [Configure the switches](#configure-switches)
 - [Install operation system on the controller nodes](#controller-os)
-- [Create and start the JumpScale 9 Docker container](#js9-container)
+- [Using the management image for the installer script](#man-container)
 - [Setup the Kubernetes cluster and deploy the OpenvCloud system containers](#kubernetes-cluster)
 - [Access the management container](#management-container)
 - [Install the operating systems on the nodes](#os-nodes)
@@ -90,12 +90,12 @@ Repeat this procedure for all three controllers.
 @TODO
 
 
-<a id="js9-container"></a>
-## Create and start the JumpScale 9 Docker container
+<a id="man-container"></a>
+## Using the management image for the installer script
 
-Setting up an OpenvCloud environment requires a JumpScale 9 Docker container on the first controller node.
+To have all the necessary requirements to use the installer to setup the cluster, you can use the management docker image.
 
-The image for this Docker image is available on Docker Hub: https://hub.docker.com/r/openvcloud/js9/.
+The Docker image is available on Docker Hub: https://hub.docker.com/r/openvcloud/management/.
 
 Install Docker on the first controller node:
 ```bash
@@ -107,14 +107,9 @@ apt-get install libltdl7 aufs-tools
 apt-get install docker-ce=17.03.0~ce-0~ubuntu-xenial
 ```
 
-Create and start the required [openvcloud/js9/](https://hub.docker.com/r/openvcloud/js9/) Docker container:
+Create and start the required [openvcloud/management/](https://hub.docker.com/r/openvcloud/management/) Docker container:
 ```bash
-docker run --rm -it openvcloud/js9:2.3.0 /bin/bash 
-```
-
-The installation also requires that you clone the OpenvCloud installer repository into the Docker container:
-```bash
-git clone https://github.com/0-complexity/openvcloud_installer/
+docker run --rm -it openvcloud/management /bin/bash 
 ```
 
 
@@ -141,7 +136,7 @@ For more details about the `ìnstaller` script see [Installer Script Details](In
 <a id="management-container"></a>
 ## Access the management container
 
-The management container is used to perform various admin operations on the environment. It is based on the same JumpScale 9 image and has the `kubectl` tool installed that is needed to perform various Kubernetes related operations.
+The management container is used to perform various admin operations on the environment. It is based on the management image and has the `kubectl` tool installed that is needed to perform various Kubernetes related operations.
 
 Accessing the management container can be done using **0-access**.
 
