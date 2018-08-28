@@ -1281,7 +1281,7 @@ class RecycleBinTests(BasicACLTest):
 
     def test036_restore_deleted_image_account_deleted(self):
         """ OVC-0036
-        *Test case for restoring deleted machine on a deleted Cloud Space *
+        *Test case for restoring deleted machine on a deleted Account *
 
         **Test Scenario:**
 
@@ -1693,5 +1693,77 @@ class RecycleBinTests(BasicACLTest):
 
         self.wait_for_status("DESTROYED", self.api.cloudapi.disks.get, diskId=disk_id)
         self.wait_for_status("DESTROYED", self.api.cloudapi.disks.get, diskId=disk_id1)
+
+        self.lg("%s ENDED" % self._testID)
+
+    def test048_restore_deleted_disk_account_deleted(self):
+        """ OVC-0048
+        *Test case for restoring deleted disk on a deleted Account *
+
+        **Test Scenario:**
+
+        #. creating disk, should succeed
+        #. deleting current account, should succeed
+        #. restoring disk, should fail
+        """
+        self.lg("%s STARTED" % self._testID)
+
+        self.lg("- creating disk, should succeed")
+        disk_id = self.create_disk(self.account_id)
+
+        self.lg("- deleting current account, should succeed")
+        self.api.cloudbroker.account.delete(
+            accountId=self.account_id, reason="Test case"
+        )
+
+        self.wait_for_status(
+            "DELETED", self.api.cloudapi.accounts.get, accountId=self.account_id
+        )
+
+        self.lg("- restoring disk, should fail")
+        with self.assertRaises(HTTPError) as e:
+            self.api.cloudapi.disks.restore(diskId=disk_id, reason="Test case")
+        self.assertEqual(e.exception.status_code, 400)
+
+        self.lg("%s ENDED" % self._testID)
+
+    @parameterized.expand(["no", "yes"])
+    def test049_delete_account_with_disk(self, perma):
+        """ OVC-049
+        *Test case for deleting Account with a disk *
+
+        **Test Scenario:**
+
+        #. creating disk in current account, should succeed
+        #. deleting account, should succeed
+        #. permanently deleting account, should succeed
+        """
+        self.lg("%s STARTED" % self._testID)
+
+        self.lg("- creating disk in current account, should succeed")
+        disk_id = self.create_disk(self.account_id)
+
+        if perma == "yes":
+            permanently = True
+            msg = "- permanently deleting account, should succeed"
+            state = "DESTROYED"
+            disk_state = "DESTROYED"
+        else:
+            permanently = False
+            msg = "- deleting account, should succeed"
+            state = "DELETED"
+            disk_state = "TOBEDELETED"
+
+        self.lg(msg)
+        self.api.cloudbroker.account.delete(
+            accountId=self.account_id, reason="Test case", permanently=permanently
+        )
+
+        self.wait_for_status(
+            state, self.api.cloudapi.accounts.get, accountId=self.account_id
+        )
+
+        disk_status = self.api.cloudapi.disks.get(diskId=disk_id)["status"]
+        self.assertEqual(disk_status, disk_state)
 
         self.lg("%s ENDED" % self._testID)

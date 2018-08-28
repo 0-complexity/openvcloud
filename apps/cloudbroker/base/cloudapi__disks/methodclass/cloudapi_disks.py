@@ -363,8 +363,14 @@ class cloudapi_disks(BaseActor):
     @authenticator.auth(acl={"cloudspace": set("X")})
     def restore(self, diskId, reason, **kwargs):
         disk = self.models.disk.searchOne({"id": diskId})
+        account = self.models.account.get(disk["accountId"])
         if not disk or disk["status"] == resourcestatus.Disk.DESTROYED:
             raise exceptions.NotFound("Couldn't find disk with id: %s" % diskId)
+        if (
+            account.status == resourcestatus.Account.DELETED
+            and "diskrestore" not in kwargs
+        ):
+            raise exceptions.BadRequest("Cannot restore a disk on a deleted account")
         if disk["status"] != resourcestatus.Disk.TOBEDELETED:
             raise exceptions.BadRequest(
                 "Cannot restore an attached or non deleted disk"

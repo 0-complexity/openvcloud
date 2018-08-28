@@ -301,6 +301,12 @@ class cloudbroker_account(BaseActor):
         cloudspaces = self.models.cloudspace.search(query)[1:]
         for cloudspace in cloudspaces:
             j.apps.cloudbroker.cloudspace._destroy(cloudspace, reason, permanently, ctx)
+        disks = self.models.disk.search(
+            {"accountId": accountId, "status": {"$ne": resourcestatus.Disk.DESTROYED}},
+            size=0,
+        )[1:]
+        for disk in disks:
+            j.apps.cloudapi.disks.delete(disk["id"], False, permanently)
         account = self.models.account.get(accountId)
         if permanently:
             account.status = resourcestatus.Account.DESTROYED
@@ -345,6 +351,18 @@ class cloudbroker_account(BaseActor):
             j.apps.cloudapi.cloudspaces.restore(
                 cloudspace["id"], reason, ctx=ctx, accrestore=""
             )
+        disks = self.models.disk.search(
+            {
+                "accountId": account["id"],
+                "status": {"$ne": resourcestatus.Disk.DESTROYED},
+            },
+            size=0,
+        )[1:]
+        for idx, disk in enumerate(disks):
+            ctx.events.sendMessage(
+                title, "Restoring Disk %s/%s" % (idx + 1, len(disks))
+            )
+            j.apps.cloudapi.disks.restore(disk["id"], reason, ctx=ctx, diskrestore="")
 
         self.models.account.updateSearch(
             {"id": account["id"]},
