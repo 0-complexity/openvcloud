@@ -1107,12 +1107,12 @@ class CSLibvirtNodeDriver(object):
         """
         return False
 
-    def attach_public_network(self, node, vlan, ipcidr):
+    def attach_public_network(self, node, vlan, ipcidr, externalNetworkId):
         """
         Attach Virtual machine to the cpu node public network
         """
         macaddress = self.backendconnection.getMacAddress(self.gid)
-        target = "%s-ext" % (node.name)
+        target = "%s-%s-ext" % (node.name, externalNetworkId)
         bridgename = j.system.ovsnetconfig.getVlanBridge(vlan)
         interface = NetworkInterface(
             mac=macaddress,
@@ -1127,12 +1127,13 @@ class CSLibvirtNodeDriver(object):
             xml=str(interface),
             machineid=node.id,
             ipcidr=ipcidr,
+            vlan=vlan
         )
         return interface
 
-    def detach_public_network(self, node):
+    def detach_public_network(self, node, mac):
         for iface in node.extra["ifaces"]:
-            if iface.type == "PUBLIC":
+            if iface.type == "PUBLIC" and iface.mac == mac:
                 self._execute_agent_job(
                     "detach_device",
                     queue="hypervisor",

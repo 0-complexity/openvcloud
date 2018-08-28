@@ -146,11 +146,14 @@ def main(j, args, params, tags, tasklet):
 
         for nic in obj.nics:
             action = ""
-            if nic.deviceName.endswith("ext"):
-                action = "{{action id:'action-DetachFromExternalNetwork' deleterow:true class:'glyphicon glyphicon-remove''}}"
             tagObj = j.core.tags.getObject(nic.params or "")
             gateway = tagObj.tags.get("gateway", "N/A")
             if "externalnetworkId" in tagObj.tags:
+                externalNetworkId = int(tagObj.tags["externalnetworkId"])
+                action = (
+                    "{{action id:'action-DetachFromExternalNetwork' deleterow:true class:'glyphicon glyphicon-remove' data-externalNetworkId:'%s'}}"
+                    % externalNetworkId
+                )
                 nic.ipAddress = "[%s|External Network?networkid=%s]" % (
                     nic.ipAddress,
                     tagObj.tags["externalnetworkId"],

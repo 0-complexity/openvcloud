@@ -323,7 +323,9 @@ class cloudapi_cloudspaces(BaseActor):
 
         kwargs["ctx"].env["tags"] += " cloudspaceId:{}".format(cs.id)
         networkid = cs.networkId
-        netinfo = self.network.getExternalIpAddress(cs.gid, cs.externalnetworkId)
+        netinfo = self.network.getExternalIpAddress(
+            cs.gid, cs.accountId, cs.externalnetworkId
+        )
         if netinfo is None:
             self.models.cloudspace.delete(cs.id)
             raise exceptions.ServiceUnavailable("No available external IP Addresses")
@@ -360,7 +362,7 @@ class cloudapi_cloudspaces(BaseActor):
 
             if not cs.externalnetworkip:
                 pool, externalipaddress = self.network.getExternalIpAddress(
-                    cs.gid, cs.externalnetworkId
+                    cs.gid, cs.accountId, cs.externalnetworkId
                 )
                 cs.externalnetworkip = str(externalipaddress)
                 self.models.cloudspace.updateSearch(

@@ -660,12 +660,20 @@ class cloudbroker_machine(BaseActor):
         )
 
     @auth(groups=["level1", "level2", "level3"])
-    def attachExternalNetwork(self, machineId, **kwargs):
-        return j.apps.cloudapi.machines.attachExternalNetwork(machineId=machineId)
+    def attachExternalNetwork(self, machineId, externalNetworkId, **kwargs):
+        return j.apps.cloudapi.machines.attachExternalNetwork(
+            machineId=machineId, externalNetworkId=externalNetworkId
+        )
 
     @auth(groups=["level1", "level2", "level3"])
-    def detachExternalNetwork(self, machineId, **kwargs):
-        return j.apps.cloudapi.machines.detachExternalNetwork(machineId=machineId)
+    def detachExternalNetwork(self, machineId, externalNetworkId, **kwargs):
+        return j.apps.cloudapi.machines.detachExternalNetwork(
+            machineId=machineId, externalNetworkId=externalNetworkId
+        )
+
+    @auth(groups=["level1", "level2", "level3"])
+    def listExternalNetworks(self, machineId, **kwargs):
+        return j.apps.cloudapi.machines.listExternalNetworks(machineId=machineId)
 
     @auth(groups=["level1", "level2", "level3"])
     def addUser(self, machineId, username, accesstype, **kwargs):

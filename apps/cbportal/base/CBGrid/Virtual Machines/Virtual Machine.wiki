@@ -53,7 +53,7 @@ h3. Users Access
 {% endfor %}
 
 h3. NICs
-{{action id:'action-AttachToExternalNetwork' class:'glyphicon glyphicon-plus margin-bottom-medium margin-left-medium' label:'Attach To External Network'}}
+{{action id:'attachexternal' class:'glyphicon glyphicon-plus margin-bottom-medium margin-left-medium' label:'Attach To External Network'}}
 ||Name||MAC Address||IP Address||Gateway||Delete||
 {%for nic in nics -%}
 |${nic.deviceName}|${nic.macAddress}|${nic.ipAddress}|${nic.gateway}|${nic.action}|

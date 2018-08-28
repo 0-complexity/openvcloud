@@ -266,13 +266,6 @@
   input:
   - tagName
 
-- display: Attach To External Network
-  action: /restmachine/cloudbroker/machine/attachExternalNetwork
-  reload: true
-  hide: true
-  data:
-   machineId: $$id
-
 - display: Detach From External Network
   action: /restmachine/cloudbroker/machine/detachExternalNetwork
   hide: true
@@ -310,6 +303,7 @@
 {{movemachine: machineId:$$id}}
 {{startmachine: machineId:$$id}}
 {{resizemachine: machineId:$$id}}
+{{vmattachexternal: machineId:$$id}}
 {% else %}
 {{actions:
 - display: Restore

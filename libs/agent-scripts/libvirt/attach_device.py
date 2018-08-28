@@ -22,7 +22,7 @@ def action(xml, machineid, ipcidr=None, vlan=None):
     connection = LibvirtUtil()
     netinfo = []
     if vlan:
-        netinfo.append({"id": vlan, "type": vlan})
+        netinfo.append({"id": vlan, "type": "vlan"})
     try:
         with NetworkTool(netinfo, connection):
             domain = connection.get_domain_obj(machineid)

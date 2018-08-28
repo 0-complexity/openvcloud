@@ -271,14 +271,23 @@
 
     method:attachExternalNetwork
         """
-        Attach a public network to the machine
+        Attach an external network to the machine
         """
         var:machineId int,, id of the machine
-        result:bool, True if a public network was attached to the machine
+        var:externalNetworkId int,, optional external network id to take ip address from. If omitted will search for available network @optional
+        result:bool, True if an external network was attached to the machine
 
     method:detachExternalNetwork
         """
-        Detach the public network from the machine
+        Detach an external network from the machine
         """
         var:machineId int,, id of the machine
-        result:bool, True if public network was detached from the machine
+        var:externalNetworkId int,, external network id. If omitted all external networks will be detached @optional
+        result:bool, True if the external network was detached from the machine
+
+    method:listExternalNetworks
+        """
+        List the external networks that the machine is attached to
+        """
+        var:machineId int,, id of the machine
+        result:list, list of external network ids

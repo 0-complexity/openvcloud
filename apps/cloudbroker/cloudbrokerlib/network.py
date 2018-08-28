@@ -6,8 +6,8 @@ class Network(object):
     def __init__(self, models):
         self.models = models
 
-    def getExternalIpAddress(self, gid, externalnetworkId=None):
-        query = {"gid": gid}
+    def getExternalIpAddress(self, gid, accountId, externalnetworkId=None):
+        query = {"gid": gid, "accountId": {"$in": [accountId, 0]}}
         if externalnetworkId is not None:
             query["id"] = externalnetworkId
         for pool in self.models.externalnetwork.search(query)[1:]:
