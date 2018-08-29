@@ -12,6 +12,7 @@ import random
 import imaplib
 import socket
 import paramiko
+import gevent
 
 SESSION_DATA = {"vms": []}
 
@@ -20,12 +21,30 @@ IMAGE_URL = "ftp://pub:pub1234@ftp.gig.tech/Linux/openwrt/openwrt-18.06-rc1.qcow
 CDROM_URL = "ftp://pub:pub1234@ftp.gig.tech/Linux/tinycorelinux/Core-9x.iso"
 
 
+def execute_async_ovc(api, function, **kwargs):
+    kwargs["_async"] = True
+
+    def _run():
+        taskguid = function(**kwargs)
+        while True:
+            gevent.sleep(0.5)
+            result = api.system.task.get(taskguid=taskguid)
+            if result != b"":
+                success, result = result
+                if not success:
+                    raise RuntimeError(result)
+                return result
+
+    return gevent.spawn(_run)
+
+
 class API(object):
     API = {}
 
     def __init__(self):
         self._models = None
         self._portalclient = None
+        self._portalclient2 = None
         self._cloudapi = None
         self._cloudbroker = None
 
@@ -44,6 +63,8 @@ class API(object):
                 return set_api(j.clients.osis.getNamespace("cloudbroker"))
             elif item == "portalclient":
                 return set_api(j.clients.portal.getByInstance("main"))
+            elif item == "portalclient2":
+                return set_api(j.clients.portal.getByInstance2("main"))
             else:
                 actor = getattr(self.portalclient.actors, item)
                 return set_api(actor)
@@ -334,16 +355,11 @@ class BaseTest(unittest.TestCase):
         datadisks=[],
         wait=True,
         stackId=None,
+        async=False,
     ):
         api = api or self.api
         name = name or str(uuid.uuid4())
-
-        if image_id == None:
-            images = api.cloudapi.images.list()
-            image_id = image_id or [i["id"] for i in images if "Ubuntu" in i["name"]]
-
-            self.assertTrue(image_id)
-            image_id = image_id[0]
+        image_id = image_id or self._get_image_id(api)
 
         if vcpus and memory:
             sizeId = None
@@ -351,27 +367,56 @@ class BaseTest(unittest.TestCase):
             sizeId = size_id or self.get_size(cloudspace_id)["id"]
 
         if not stackId:
-            machine_id = api.cloudapi.machines.create(
-                cloudspaceId=cloudspace_id,
-                name=name,
-                sizeId=sizeId,
-                vcpus=vcpus,
-                memory=memory,
-                imageId=image_id,
-                disksize=disksize,
-                datadisks=datadisks,
-            )
+            if async:
+                return execute_async_ovc(
+                    api.portalclient2,
+                    api.portalclient2.cloudbroker.machine.create,
+                    cloudspaceId=cloudspace_id,
+                    name=name,
+                    sizeId=sizeId,
+                    vcpus=vcpus,
+                    memory=memory,
+                    imageId=image_id,
+                    disksize=disksize,
+                    datadisks=datadisks,
+                )
+            else:
+                machine_id = api.cloudapi.machines.create(
+                    cloudspaceId=cloudspace_id,
+                    name=name,
+                    sizeId=sizeId,
+                    vcpus=vcpus,
+                    memory=memory,
+                    imageId=image_id,
+                    disksize=disksize,
+                    datadisks=datadisks,
+                )
         else:
-            machine_id = api.cloudbroker.machine.createOnStack(
-                cloudspaceId=cloudspace_id,
-                name=name,
-                sizeId=sizeId,
-                vcpus=vcpus,
-                memory=memory,
-                imageId=image_id,
-                disksize=disksize,
-                stackid=stackId,
-            )
+            if async:
+                return execute_async_ovc(
+                    api.portalclient2,
+                    api.portalclient2.cloudbroker.machine.createOnStack,
+                    cloudspaceId=cloudspace_id,
+                    name=name,
+                    sizeId=sizeId,
+                    vcpus=vcpus,
+                    memory=memory,
+                    imageId=image_id,
+                    disksize=disksize,
+                    stackid=stackId,
+                )
+            else:
+                machine_id = api.cloudbroker.machine.createOnStack(
+                    cloudspaceId=cloudspace_id,
+                    name=name,
+                    sizeId=sizeId,
+                    vcpus=vcpus,
+                    memory=memory,
+                    imageId=image_id,
+                    disksize=disksize,
+                    stackid=stackId,
+                )
+
         self.assertTrue(machine_id)
         if wait:
             self.wait_for_status(
@@ -380,6 +425,12 @@ class BaseTest(unittest.TestCase):
         machine = api.cloudapi.machines.get(machineId=machine_id)
         self.assertEqual(machine["status"], "RUNNING")
         return machine_id
+
+    def _get_image_id(self, api):
+        images = api.cloudapi.images.list()
+        image_ids = [i["id"] for i in images if "Ubuntu" in i["name"]]
+        self.assertTrue(image_ids)
+        return image_ids[0]
 
     def cloudbroker_create_machine(
         self,

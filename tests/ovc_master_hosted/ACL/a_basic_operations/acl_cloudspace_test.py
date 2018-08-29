@@ -125,7 +125,6 @@ class Read(ACLCLOUDSPACE):
         self.lg("5- Try list user's cloud spaces,")
         cloudspaces = self.user_api.cloudapi.cloudspaces.list()
         self.assertEqual(len(cloudspaces), 2, "Failed to list all user's cloud spaces!")
-
         self.lg(
             "6- Verify that ACL rights for the account owner is ACDRUX and for user is R only"
         )
