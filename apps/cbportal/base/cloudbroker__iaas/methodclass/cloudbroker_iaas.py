@@ -137,7 +137,13 @@ class cloudbroker_iaas(BaseActor):
         cloudCount = self.models.cloudspace.count(
             {"externalnetworkId": externalnetworkId, "status": {"$ne": "DESTROYED"}}
         )
-        if cloudCount == 0:
+        machineCount = self.models.vmachine.count(
+            {
+                "nics.params": {"$regex": "externalnetworkId:{}($|\D)".format(externalnetworkId)}, 
+                "status": {"$ne": "DESTROYED"}
+            }
+        )
+        if cloudCount == 0 and machineCount == 0:
             self.models.externalnetwork.delete(externalnetworkId)
         else:
             raise exceptions.Conflict("Cannot delete, external network in use")

@@ -58,7 +58,9 @@ h3. External Network
 |*Subnet Mask*|${subnetmask}|
 |*Gateway*|${gateway} {{action: id:'action-ChangeGateway' class:'glyphicon glyphicon-edit margin-bottom-medium margin-left-medium' label:''}} |
 |*IPs to check*|${pingips} {{action: id:'action-Editlistofipstocheck' class:'glyphicon glyphicon-edit margin-bottom-medium margin-left-medium' label:''}}|
-
+{%- if accountId %}
+|*Account*| [${accountId}|/CBGrid/account?id=${accountId}]|
+{%- endif %}
 @HR
 
 h4. Free IPs

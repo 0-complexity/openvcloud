@@ -316,23 +316,8 @@ class NetworkBasicTests(BasicACLTest):
         """
 
         self.lg("Create external network (EN1) with empty vlan tag, should succeed")
-        name = "test-external-network"
-        base = ".".join([str(random.randint(0, 254)) for i in range(3)])
-        subnet = base + ".0/24"
-        gateway = base + ".1"
-        startip = base + ".10"
-        endip = base + ".20"
-        gid = j.application.whoAmI.gid
-
         try:
-            external_network_id = self.api.cloudbroker.iaas.addExternalNetwork(
-                name=name,
-                subnet=subnet,
-                gateway=gateway,
-                startip=startip,
-                endip=endip,
-                gid=gid,
-            )
+            external_network_id = self.create_external_network(name="test-external-network")
             self.lg("Get external network (EN1)'s info using osis client")
             osis_client = j.clients.osis.getNamespace("cloudbroker")
             external_network_info = osis_client.externalnetwork.get(external_network_id)

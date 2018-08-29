@@ -12,7 +12,7 @@ def main(j, args, params, tags, tasklet):
 
     cbclient = j.clients.osis.getNamespace("cloudbroker")
     if not cbclient.externalnetwork.exists(networkid):
-        args.doc.applyTemplate({id: None}, True)
+        args.doc.applyTemplate({}, True)
         return params
 
     pool = cbclient.externalnetwork.get(networkid)

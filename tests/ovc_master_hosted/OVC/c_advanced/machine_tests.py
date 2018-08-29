@@ -953,3 +953,37 @@ class MachineTests(BasicACLTest):
         self.api.cloudapi.machines.get(machine_id)
         with created_machines.get_lock():
             created_machines.value += 1
+
+    def test019_machine_attach_newly_created_external_network(self):
+        """ OVC-66
+        *Test case for attaching a virtual machine to a newly created external network*
+
+        **Test Scenario:**
+
+        #. Create machine, should succed.
+        #. Create external network, should succeed.
+        #. Attach new external network to the machine, should succeed.
+        #. Detach new external network, should succeed.
+        #. Remove new external network, should succeed.
+        """
+        self.lg("%s STARTED" % self._testID)
+
+        self.lg("Create machine, should succeed.")
+        vm_id = self.cloudapi_create_machine(cloudspace_id=self.cloudspace_id)
+
+        self.lg("Create external network, should succeed")
+        external_network_id = self.create_external_network()
+
+        self.lg("Attach new external network to the machine, should succeed")
+        reponse = self.api.cloudbroker.machine.attachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+        self.assertTrue(reponse)
+
+        self.lg("Detach new external network, should succeed")
+        reponse = self.api.cloudbroker.machine.detachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+        self.assertTrue(reponse)
+
+        self.lg("Remove new external network, should succeed")
+        self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
+
+        self.lg("%s ENDED" % self._testID)
+

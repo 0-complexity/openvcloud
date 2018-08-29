@@ -725,6 +725,29 @@ class BaseTest(unittest.TestCase):
         disk_id = ccl.disk.searchOne({"$fields": ["id"], "$query": query})["id"]
         return disk_id
 
+    def create_external_network(self, name="", gid=None, vlan=None, account_id=None):
+        ccl = j.clients.osis.getNamespace("cloudbroker")
+        name = name or str(uuid.uuid4()).replace("-", "")[0:10]
+        gid = gid or j.application.whoAmI.gid
+        account_id = account_id or self.account_id
+        base = ".".join([str(random.randint(0, 254)) for _ in range(3)])
+        subnet = base + ".0/24"
+        gateway = base + ".1"
+        startip = base + ".10"
+        endip = base + ".20"
+        external_network_id = self.api.cloudbroker.iaas.addExternalNetwork(
+            name=name,
+            subnet=subnet,
+            gateway=gateway,
+            startip=startip,
+            endip=endip,
+            gid=gid,
+            vlan=vlan,
+            accountId=account_id
+        )
+        self.wait_for_set(ccl.externalnetwork.get, key=external_network_id)
+        return external_network_id
+
     def get_vm_ssh_publicport(self, vm_id, wait_vm_ip=True):
         vm = self.api.cloudapi.machines.get(machineId=vm_id)
         pfs = self.api.cloudapi.portforwarding.list(

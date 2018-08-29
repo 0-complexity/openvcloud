@@ -281,7 +281,7 @@ class cloudapi_disks(BaseActor):
         if disk.type == "C":
             machines = self.models.vmachine.count(
                 {
-                    "tags": {"$regex": ".*cdrom:%s.*" % disk.id},
+                    "tags": {"$regex": "cdrom:%s($|\D)" % disk.id},
                     "status": {"$ne": resourcestatus.Machine.DESTROYED},
                 }
             )
