@@ -26,11 +26,11 @@ h3. Software Versions
 {{repoversion}}
 
 |*Id*|${version.id}|       
-|*Version*|${version.manifest.version}|
+|*Version*|${version.name}|
 |*Status*|${version.status}|
 |*Creation time*|{{ts:${version.creationTime}}}|
 |*Update time*|{{ts:${version.updateTime}}}|
-|*Manifest url*|${version.manifest.url}|
+|*Manifest url*|${version.url}|
 
 h5. Openvcloud
 {% for repo in version.manifest.repos -%}
