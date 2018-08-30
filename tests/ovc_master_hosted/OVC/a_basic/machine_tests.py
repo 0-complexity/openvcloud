@@ -3,7 +3,7 @@ import unittest
 import uuid
 import random
 import time
-from ....utils.utils import BasicACLTest, VMClient, execute_async_ovc
+from ....utils.utils import BasicACLTest, VMClient
 from nose_parameterized import parameterized
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
@@ -1114,54 +1114,5 @@ class BasicTests(BasicACLTest):
         with self.assertRaises(HTTPError) as e:
             self.api.cloudbroker.machine.restore(machineId=test_machine_id)
         self.assertEqual(e.exception.status_code, 400)
-
-    def test017_mass_vms_creation(self):
-        # create account
-        """ OVC-062
-
-        *Test case for mass vms creationg 100 vm*
-
-        **Test Scenario:**
-
-        #. create 100 vms
-        #. make sure all are in RUNNING state
-        """
-        def get_vm_name(cloudspace_id, counter):
-            return "vm-mass-{0}-{1:0>3}".format(cloudspace_id, counter)
-        jobs = []
-        # Create vms in this cloud space
-        expected_vms = [get_vm_name(self.cloudspace_id, x) for x in range(1, 101)]
-        self.lg("Creating 100 machine")
-        for name in expected_vms:
-            jobs.append(
-                self.cloudapi_create_machine(
-                    cloudspace_id=self.cloudspace_id,
-                    name=name,
-                    memory=512,
-                    vcpus=1,
-                    disksize=10,
-                    async=True,
-                )
-            )
-        machines_ids = []
-        gevent.wait()
-        for job in jobs:
-            machines_ids.append(job.get())
-        jobs = []
-        status = set()
-        for machine_id in machines_ids:
-            jobs.append(
-                execute_async_ovc(
-                    self.api.portalclient2,
-                    self.api.portalclient2.cloudbroker.machine.get,
-                    machineId=machine_id,
-                )
-            )
-        gevent.wait()
-        for job in jobs:
-            status.add(job.get()["status"])
-        self.lg("Make sure all are in RUNNING state")
-        self.assertEqual(len(status), 1)
-        self.assertEqual(status.pop(), "RUNNING")
 
     

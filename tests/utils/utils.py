@@ -99,7 +99,7 @@ class BaseTest(unittest.TestCase):
 
         # adding a signal alarm for timing out the test if it took longer than 15 minutes
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(2000)
+        signal.alarm(3000)
 
     def default_setup(self, create_default_cloudspace=True):
         self.create_default_cloudspace = create_default_cloudspace
