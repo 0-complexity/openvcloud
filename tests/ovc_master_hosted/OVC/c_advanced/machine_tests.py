@@ -987,3 +987,62 @@ class MachineTests(BasicACLTest):
 
         self.lg("%s ENDED" % self._testID)
 
+    def test020_delete_external_network_used_by_machine(self):
+        """ OVC-67
+        *Test case for deleting an external network that is used by a machine*
+
+        **Test Scenario:**
+
+        #. Create external network, should succeed.
+        #. Create machine, should succeed.
+        #. Attach new external network to the machine, should succeed.
+        #. Delete new external network, should fail.
+        #. Delete created machine, should succeed.
+        #. Delete new external network, should succeed.
+        """
+        self.lg("%s STARTED" % self._testID)
+
+        self.lg("Create external network, should succeed")
+        external_network_id = self.create_external_network()
+
+        self.lg("Create machine, should succeed")
+        vm_id = self.cloudapi_create_machine(cloudspace_id=self.cloudspace_id)
+
+        self.lg("Attach new external network to the machine, should succeed")
+        reponse = self.api.cloudbroker.machine.attachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+        self.assertTrue(reponse)
+
+        self.lg("Delete new external network, should fail")
+        with self.assertRaises(HTTPError) as e:
+            self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
+        self.assertEqual(e.exception.status_code, 409)
+        
+        self.lg("Delete created machine, should succeed")
+        self.api.cloudapi.machines.delete(machineId=vm_id, permanently=True)
+
+        self.lg("Delete new external network, should succeed")
+        self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
+
+        self.lg("%s ENDED" % self._testID)
+
+    def test021_delete_external_network_used_by_cloudspace(self):
+        """ OVC-68
+        *Test case for deleting an external network that is used by a cloudspace*
+
+        **Test Scenario:**
+
+        #. Getting external network of default Cloud Space, should succeed
+        #. Delete Cloud Space's external network, should fail.
+        """
+        self.lg("%s STARTED" % self._testID)
+
+        self.lg("Getting external network of default Cloud Space, should succeed")
+        external_network_id = self.api.cloudspaces.get(cloudspaceId=self.cloudspace_id)['externalnetworkId']
+
+        self.lg("Delete Cloud Space's external network, should fail")
+        with self.assertRaises(HTTPError) as e:
+            self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
+        self.assertEqual(e.exception.status_code, 409)
+
+        self.lg("%s ENDED" % self._testID)
+

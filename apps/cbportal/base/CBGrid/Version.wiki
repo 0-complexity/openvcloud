@@ -49,7 +49,8 @@ h5. JumpScale
 {{ovsversion}}
 
 {% if current -%}
-h2. Versions history
+h2. Software Versions history
+{{datatables_use}}
 ||ID||Version||Creation time||Status||Delete||
 {% for version in history -%}
 |[${version.id}|?id=${version.id}]|${version.name}|{{ts: ${version.creationTime}}}|${version.status}|{% if version.status == 'ERROR' %} {{action deleterow:true id:'action-DeleteVersion' data-id:${version.id} class:'glyphicon glyphicon-remove'}}{% endif %}|
