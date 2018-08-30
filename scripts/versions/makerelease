@@ -208,6 +208,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--force-version", action='store_true', default=False,
                         dest="force", help="Force recreation of version")
     parser.add_argument("-m", "--manifest", help="Version Manifest", required=True)
+    parser.add_argument("-u", "--unattended", action="store_true", default=False)
     options = parser.parse_args()
     if not j.system.fs.exists(options.manifest):
         j.console.warning('File {} does not exist.'.format(options.manifest))
@@ -220,7 +221,7 @@ WARNING: This command will reset all your repos.
 ''')
 
     try:
-        if j.console.askYesNo("Are you sure you want to continue? "):
+        if options.unattended or j.console.askYesNo("Are you sure you want to continue? "):
             main(manifest, options.force, options.dry)
     except KeyboardInterrupt:
         sys.exit(1)
