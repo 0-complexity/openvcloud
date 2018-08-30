@@ -123,9 +123,9 @@ $(function () {
                    'onPasswordRequired':  passwordRequired});
     rfb.connect(host, port, password, path, queryargs);
     $('.btn-group').click(function() {
-          rfb.get_keyboard().set_focused(false);
+        rfb.get_keyboard().set_focused(false);
     });
-    $('#noVNC_status_bar').click(function(event){
+    $('.container').on('hidden.bs.modal', function(){
         rfb.get_keyboard().set_focused(true);
     });
 });
