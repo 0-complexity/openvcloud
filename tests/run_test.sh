@@ -19,7 +19,8 @@ done
 
 protocol=${protocol:-https}
 CI_JOB_NAME=${CI_JOB_NAME:-${TESTSUITE}}
-LOGFILE="/tmp/${CI_JOB_NAME}.log"
+CI_PIPELINE_ID=${CI_PIPELINE_ID:-'0'}
+LOGFILE="/tmp/${CI_JOB_NAME}_${CI_PIPELINE_ID}.log"
 
 if [[ ${TESTSUITE} == "acl" ]] || [[ ${TESTSUITE} == "ovc" ]]; then
 
