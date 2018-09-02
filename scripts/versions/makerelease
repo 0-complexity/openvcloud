@@ -156,7 +156,7 @@ def main(manifest, force, dry):
 
         else:
             j.console.info('Cloning {}/{}'.format(repo['info'].account, repo['info'].reponame))
-            j.do.pullGitRepo(repo['url'], **{target.type: target.name})
+            j.do.pullGitRepo(repo['url'], **{source.type: source.name})
             repo['client'] = j.clients.git.get(repo['info'].path)
         # validate tag and branch
         if target.type == 'tag':
