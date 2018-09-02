@@ -89,6 +89,9 @@ def tag_exists(repo, tagname):
             return True
     return False
 
+def get_ssh_url(url):
+    res = j.do.rewriteGitRepoUrl(url, protocol='ssh')
+    return res[4]
 
 def get_branch(repo, tag):
     version = parse_version(tag)
@@ -99,6 +102,7 @@ def get_branch(repo, tag):
 
 
 def prepare_source(repo, force, push_target=True):
+    sshurl = get_ssh_url(repo['url'])
     source = repo['source']
     target = repo['target']
     client = repo['client']
@@ -107,7 +111,7 @@ def prepare_source(repo, force, push_target=True):
         client.repo.git.checkout('-B', source.name, 'origin/{0}'.format(source.name))
         if push_target:
             make_tag(client, target.name, force)
-            args = ['origin', 'tag', target.name]
+            args = [sshurl, 'tag', target.name]
             if force:
                 args.insert(0, '-f')
             client.repo.git.push(*args)
@@ -128,7 +132,7 @@ def prepare_source(repo, force, push_target=True):
             else:
                 client.repo.git.checkout('-B', target.name, 'origin/{}'.format(source.name))
         if push_target:
-            args = ['-u', 'origin', target.name]
+            args = ['-u', sshurl, target.name]
             if force:
                 args.insert(0, '-f')
             client.repo.git.push(*args)
@@ -187,7 +191,7 @@ def main(manifest, force, dry):
             args = []
             if force:
                 args.append('-f')
-            args.append('origin')
+            args.append(get_ssh_url(repo['url']))
             if target.type == 'tag':
                 if not dry:
                     make_tag(client, target.name, force)
