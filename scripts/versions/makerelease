@@ -145,7 +145,7 @@ def main(manifest, force, dry):
         repo['target'] = target
         j.console.info('Switching to source {}/{} on {}'.format(source.type, source.name, repo['name']))
         repo['info'] = get_repo_info(repo['url'])
-        if j.system.fs.exists(repo['info'].path):
+        if j.system.fs.exists(os.path.join(repo['info'].path, '.git')):
             repo['client'] = j.clients.git.get(repo['info'].path)
             if source.type != 'tag':
                 repo['client'].repo.git.fetch('origin', '{0}'.format(source.name))
