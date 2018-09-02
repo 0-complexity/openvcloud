@@ -150,7 +150,10 @@ class cloudbroker_node(BaseActor):
             args=args,
         )
 
-        if jobinfo["state"] == "ERROR":
-            raise exceptions.Error(
-                "Failed to apply action: {} on node: {}".format(action, nodename)
-            )
+        if jobinfo["state"] == "OK":
+            if jobinfo["result"]["return_code"]:
+                raise exceptions.BadRequest(
+                    "Failed to apply action: {} on node: {}.".format(action, nodename)
+                )
+        else:
+            raise exceptions.ServiceUnavailable("Can't connect to management node.")

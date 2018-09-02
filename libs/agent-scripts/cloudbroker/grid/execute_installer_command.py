@@ -21,9 +21,7 @@ def get_client():
 
 def action(cmd):
     client = get_client()
-    try:
-        return client.run("installer {}".format(cmd))
-    except Exception as e:
-        raise RuntimeError(
-            "Failed to execute command: '{}', Error: '{}'".format(cmd, str(e))
-        )
+    response = client.run("installer {}".format(cmd), warn_only=True)
+    return dict(
+        return_code=response.return_code, stdout=response.stdout, stderr=response
+    )

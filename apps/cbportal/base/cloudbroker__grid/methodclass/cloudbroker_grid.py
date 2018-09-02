@@ -64,6 +64,21 @@ class cloudbroker_grid(BaseActor):
         manifest = requests.get(url).content
         version = os_path.splitext(os_path.basename(urlparse(url).path))[0]
         current_time = j.base.time.getTimeEpoch()
+
+        jobinfo = self.cb.executeJumpscript(
+            "greenitglobe",
+            "execute_installer_command",
+            role="controllernode",
+            gid=j.application.whoAmI.gid,
+            args={"cmd": "cluster pre-flight-check"},
+        )
+
+        if jobinfo["state"] == "OK":
+            if jobinfo["result"]["return_code"]:
+                raise exceptions.BadRequest(jobinfo["result"]["stderr"])
+        else:
+            raise exceptions.ServiceUnavailable("Can't connect to management node.")
+
         self.sysmodels.version.updateSearch(
             {"status": "INSTALLING"}, {"$set": {"status": "ERROR"}}
         )
