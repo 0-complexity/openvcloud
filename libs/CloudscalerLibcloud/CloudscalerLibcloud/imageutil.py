@@ -15,6 +15,8 @@ def registerImage(
     srcpath = None
     for export in service.hrd.getListFromPrefix("service.web.export"):
         srcpath = export["dest"]
+        host = export.get("url", "")
+        path = export.get("source", "")
     if not srcpath:
         raise RuntimeError("No image export defined in service")
 
@@ -35,6 +37,10 @@ def registerImage(
         image.status = "CREATED"
         image.bootType = bootType
         image.hotResize = hotResize
+        if host and path:
+            url = host + path
+            image.url = url
+            image.lastModified = j.system.net.getServerFileLastModified(url)
         imageId, _, _ = ccl.image.set(image)
         ccl.stack.updateSearch({"gid": image.gid}, {"$addToSet": {"images": imageId}})
     # successfully registered lets delete source file
