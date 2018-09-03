@@ -116,6 +116,8 @@ h3. Image: ${name}
 {% else -%}
 * *Account*: Public Available
 {% endif -%}
+* *Last modified*: {{ts: ${lastModified}}}
+* *URL*: ${url}
 
 h4. Stacks which have this Image
 
