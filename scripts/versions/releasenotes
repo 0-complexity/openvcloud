@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+import github
+import argparse
+import yaml
+import sys
+import os
+from urllib.parse import urlparse
+
+OVC_URL = "https://github.com/0-complexity/openvcloud"
+
+
+class Generator:
+    def __init__(self, token, repos, milestone):
+        self.git = github.Github(token)
+        self.features = []
+        self.bugs = []
+        self.repos = repos
+        self.milestone = milestone
+
+    def generate(self):
+        for repo in self.repos:
+            url = urlparse(repo["url"])
+            repo = self.git.get_repo(url.path.lstrip("/"))
+            milestone_obj = self.get_milestone(repo, self.milestone)
+            if not milestone_obj:
+                continue
+            for issue in repo.get_issues(milestone_obj, "closed"):
+                has_feature = [
+                    label
+                    for label in issue.get_labels()
+                    if "type_feature" in label.name
+                ]
+                issue_text = "* [{}]({}/issues/{})".format(
+                    issue.title, repo.html_url, issue.number
+                )
+                if has_feature:
+                    self.features.append(issue_text)
+                else:
+                    self.bugs.append(issue_text)
+
+    def return_notes(self):
+        message = "## Features:\n"
+        for issue in self.features:
+            message += "{}\n".format(issue)
+        message += "## Issues:\n"
+        for issue in self.bugs:
+            message += "{}\n".format(issue)
+        return message
+
+    def _get_ovc_repo(self):
+        for repo in self.repos:
+            if repo["url"] == OVC_URL:
+                url = urlparse(repo["url"])
+                return self.git.get_repo(url.path.lstrip("/"))
+
+    def get_milestone(self, repo, milestonename):
+        for milestone in repo.get_milestones("all"):
+            if milestone.title == milestonename:
+                return milestone
+
+    def push_release(self):
+        message = self.return_notes()
+        ovc_repo = self._get_ovc_repo()
+        data = {
+            "tag": "v{}".format(self.milestone),
+            "name": "Release: v{}".format(self.milestone),
+            "message": message,
+            "prerelease": True,
+        }
+        ovc_repo.create_git_release(**data)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--milestone")
+    parser.add_argument("-m", "--manifest", help="Path to the manifest file")
+    parser.add_argument("-t", "--token", help="Github Token")
+    options = parser.parse_args()
+    if not os.path.exists(options.manifest):
+        print("File {} does not exist.".format(options.manifest))
+        sys.exit(1)
+    with open(options.manifest) as manifestfd:
+        manifest = yaml.load(manifestfd)["repos"]
+    gen = Generator(options.token, manifest, options.milestone)
+    gen.generate()
+    gen.push_release()
