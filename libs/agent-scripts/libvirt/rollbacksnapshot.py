@@ -21,33 +21,36 @@ def action(ovs_connection, diskguids, timestamp, name):
         credentials=(ovs_connection["client_id"], ovs_connection["client_secret"]),
     )
 
-    path_rollback_snapshot = "/vdisks/{}/rollback"
-    if name:
-        disk_path = "/vdisks/{}"
-        jobs = []
+    disk_path = "/vdisks/{}"
+    if not name:
         for diskguid in diskguids:
             diskinfo = ovs.get(disk_path.format(diskguid))
             snapshots = reversed(diskinfo["snapshots"])
             for snapshot in snapshots:
-                if snapshot["label"] == name:
-                    params = dict(timestamp=snapshot["timestamp"])
-                    jobs.append(
-                        gevent.spawn(
-                            ovs.post,
-                            path_rollback_snapshot.format(diskguid),
-                            params=params,
-                        )
-                    )
+                if timestamp == snapshot["timestamp"]:
+                    name = snapshot["label"]
                     break
+            if name:
+                break
+        else:
+            raise ValueError("Snapshot not found")
 
-    else:
-        params = dict(timestamp=timestamp)
-        jobs = [
-            gevent.spawn(
-                ovs.post, path_rollback_snapshot.format(diskguid), params=params
-            )
-            for diskguid in diskguids
-        ]
+    path_rollback_snapshot = "/vdisks/{}/rollback"
+    jobs = []
+    for diskguid in diskguids:
+        diskinfo = ovs.get(disk_path.format(diskguid))
+        snapshots = reversed(diskinfo["snapshots"])
+        for snapshot in snapshots:
+            if snapshot["label"] == name:
+                params = dict(timestamp=snapshot["timestamp"])
+                jobs.append(
+                    gevent.spawn(
+                        ovs.post,
+                        path_rollback_snapshot.format(diskguid),
+                        params=params,
+                    )
+                )
+                break
 
     gevent.joinall(jobs)
 

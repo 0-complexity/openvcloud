@@ -32,22 +32,25 @@ def action(ovs_connection, diskguids, timestamp, name):
     path_get_disk = "/vdisks/{}"
     path_delete_snapshot = "/vdisks/{}/remove_snapshot"
 
+    if not name:
+        for diskguid in diskguids:
+            diskinfo = ovs.get(path_get_disk.format(diskguid))
+            snapshots = reversed(diskinfo["snapshots"])
+            for snapshot in snapshots:
+                if timestamp == snapshot["timestamp"]:
+                    name = snapshot["label"]
+                    break
+            if name:
+                break
+        else:
+            raise ValueError("Snapshot not found")
+
     def delete_snapshot(diskguid):
         # First lookup snapshot
         disk_details = ovs.get(path_get_disk.format(diskguid))
-        if name:
-            snapshot = next(
-                (x for x in disk_details["snapshots"] if x["label"] == name), None
-            )
-        else:
-            snapshot = next(
-                (
-                    x
-                    for x in disk_details["snapshots"]
-                    if int(x["timestamp"]) == timestamp
-                ),
-                None,
-            )
+        snapshot = next(
+            (x for x in disk_details["snapshots"] if x["label"] == name), None
+        )
         if snapshot is None:
             raise ValueError("Snapshot not found")
 

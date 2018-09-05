@@ -1369,7 +1369,7 @@ class cloudapi_machines(BaseActor):
                 "No snapshots found with params: name %s , epoch %s" % (name, epoch)
             )
 
-        provider, node, machine = self.cb.getProviderAndNode(machineId)
+        provider, node, _ = self.cb.getProviderAndNode(machineId)
         return provider.ex_rollback_snapshot(node, epoch, name)
 
     def _match_snapshot(self, snapshot, name=None, epoch=None):
