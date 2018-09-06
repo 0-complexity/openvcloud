@@ -12,3 +12,4 @@ netaddr
 pyotp>=2.2.1
 xlrd
 paramiko
+xlwt

@@ -495,15 +495,13 @@ class ExtendedTests(BasicACLTest):
 
         self.lg("Download the account information binary file")
         credential = {"name": username, "secret": password}
-        url = "https://" + "{}.demo.greenitglobe.com".format(self.environment)
-        login_url = url + "/restmachine/system/usermanager/authenticate"
+        login_url = (
+            self.environment_url + "/restmachine/system/usermanager/authenticate"
+        )
         session = requests.Session()
         session.post(url=login_url, data=credential)
-        api_url = (
-            url
-            + "/restmachine/cloudapi/accounts/getConsumption?accountId={}&start={}&end={}".format(
-                self.account_id, start, end
-            )
+        api_url = "{}/restmachine/cloudapi/accounts/getConsumption?accountId={}&start={}&end={}".format(
+            self.environment_url, self.account_id, start, end
         )
 
         for _ in range(60):

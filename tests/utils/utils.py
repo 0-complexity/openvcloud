@@ -75,6 +75,7 @@ class BaseTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         self.api = API()
         self.environment = config["main"]["environment"]
+        self.environment_url = config["main"]["url"]
         self.protocol = config["main"]["protocol"]
         self.owncloud_user = config["main"]["owncloud_user"]
         self.owncloud_password = config["main"]["owncloud_password"]
