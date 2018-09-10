@@ -94,6 +94,7 @@ class NetManager(object):
         fwobj.vlan = vlan
         fwobj.pubips = [publicip]
         fwobj.type = type
+        fwobj.state = 'STARTED'
         key = self.osisvfw.set(fwobj)[0]
         args = {"name": "%s_%s" % (fwobj.domain, fwobj.name)}
         if type == "routeros":

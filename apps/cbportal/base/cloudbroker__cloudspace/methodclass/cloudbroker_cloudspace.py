@@ -359,7 +359,11 @@ class cloudbroker_cloudspace(BaseActor):
         if cloudspace.status == resourcestatus.Cloudspace.DELETED:
             raise exceptions.BadRequest("Selected Cloud Space is deleted")
         fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
-        return self.cb.netmgr.fw_start(fwid=fwid)
+        result = self.cb.netmgr.fw_start(fwid=fwid)
+        self.vfwcl.virtualfirewall.updateSearch(
+            {"guid": fwid}, {"$set": {"state": "STARTED"}}
+        )
+        return result
 
     @auth(groups=["level1", "level2", "level3"])
     def stopVFW(self, cloudspaceId, **kwargs):
@@ -370,7 +374,11 @@ class cloudbroker_cloudspace(BaseActor):
         cloudspaceId = self._getCloudSpace(cloudspaceId)["id"]
         cloudspace = self.models.cloudspace.get(cloudspaceId)
         fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
-        return self.cb.netmgr.fw_stop(fwid=fwid)
+        result = self.cb.netmgr.fw_stop(fwid=fwid)
+        self.vfwcl.virtualfirewall.updateSearch(
+            {"guid": fwid}, {"$set": {"state": "STOPPED"}}
+        )
+        return result
 
     @auth(groups=["level1", "level2", "level3"])
     def destroyVFW(self, cloudspaceId, **kwargs):
