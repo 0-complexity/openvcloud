@@ -370,8 +370,8 @@ class cloudbroker_machine(BaseActor):
         )
 
     @auth(groups=["level1", "level2", "level3"])
-    def rollbackSnapshot(self, machineId, epoch, reason, **kwargs):
-        j.apps.cloudapi.machines.rollbackSnapshot(machineId=machineId, epoch=epoch)
+    def rollbackSnapshot(self, machineId, reason, name=None, epoch=None, **kwargs):
+        j.apps.cloudapi.machines.rollbackSnapshot(machineId=machineId, name=name, epoch=epoch)
 
     @auth(groups=["level1", "level2", "level3"])
     def deleteSnapshot(self, machineId, epoch, reason, **kwargs):

@@ -328,7 +328,7 @@ class level1_group(ACLACCOUNT):
             machineId=machine1_id, result="test"
         )
         self.assertTrue(self.listsnapshots)
-        self.epoch_snapshot = self.listsnapshots[0]["epoch"]
+        self.snapshot_name = self.listsnapshots[0]["name"]
 
         self.lg("Rollback virtual machine to a snapshot ")
 
@@ -337,7 +337,7 @@ class level1_group(ACLACCOUNT):
                 machineId=machine1_id, reason="test"
             )
             self.user2_api.cloudbroker.machine.rollbackSnapshot(
-                machineId=machine1_id, epoch=self.epoch_snapshot, reason="test"
+                machineId=machine1_id, name=self.snapshot_name, reason="test"
             )
         except ApiError as e:
             self.lg("-expected error raised %s" % e.message)
@@ -348,7 +348,7 @@ class level1_group(ACLACCOUNT):
                 machineId=machine1_id, reason="test"
             )
             self.user2_api.cloudbroker.machine.deleteSnapshot(
-                machineId=machine1_id, epoch=self.epoch_snapshot, reason="test"
+                machineId=machine1_id, name=self.snapshot_name, reason="test"
             )
 
         except ApiError as e:

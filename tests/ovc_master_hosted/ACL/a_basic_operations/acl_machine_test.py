@@ -495,7 +495,7 @@ class Write(ACLMACHINE):
         )
         try:
             self.user_api.cloudapi.machines.rollbackSnapshot(
-                machineId=self.machine_id, epoch=first_snapshot["epoch"]
+                machineId=self.machine_id, name=first_snapshot["name"]
             )
         except ApiError as e:
             self.lg("- expected error raised %s" % e.message)
@@ -506,7 +506,7 @@ class Write(ACLMACHINE):
         )
         try:
             self.user_api.cloudapi.machines.deleteSnapshot(
-                machineId=self.machine_id, epoch=first_snapshot["epoch"]
+                machineId=self.machine_id, name=first_snapshot["name"]
             )
         except ApiError as e:
             self.lg("- expected error raised %s" % e.message)
@@ -553,7 +553,7 @@ class Write(ACLMACHINE):
             "- rollback snapshot for a machine with new user [user], should succeed"
         )
         self.user_api.cloudapi.machines.rollbackSnapshot(
-            machineId=self.machine_id, epoch=first_snapshot["epoch"]
+            machineId=self.machine_id, name=first_snapshot["name"]
         )
 
         self.lg("- start machine with new user [user], should succeed")
@@ -565,7 +565,7 @@ class Write(ACLMACHINE):
 
         self.lg("- delete snapshot for a machine with new user [user], should succeed")
         self.user_api.cloudapi.machines.deleteSnapshot(
-            machineId=self.machine_id, epoch=second_snapshot["epoch"]
+            machineId=self.machine_id, name=second_snapshot["name"]
         )
 
         snapshots = self.api.cloudapi.machines.listSnapshots(machineId=self.machine_id)

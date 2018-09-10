@@ -109,7 +109,8 @@
         Rolls back a machine snapshot
         """
         var:machineId int,,Machine id
-        var:epoch int,,Snapshot timestamp
+        var:name str,, name of snapshot @optional
+        var:epoch int,,Snapshot timestamp @optional
         var:reason str,,Reason
 
     method:deleteSnapshot
