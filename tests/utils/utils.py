@@ -512,8 +512,8 @@ class BaseTest(unittest.TestCase):
         :param func: the function used to get the resource
         :param kwargs: the parameters to be sent to func to get resource
         """
-        resource = func(**kwargs)  # get resource
         self.wait_for_set(func, timeout, **kwargs)
+        resource = func(**kwargs)  # get resource
         for _ in xrange(timeout):
             if resource["status"] == status:
                 break
@@ -744,7 +744,7 @@ class BaseTest(unittest.TestCase):
             endip=endip,
             gid=gid,
             vlan=vlan,
-            accountId=account_id
+            accountId=account_id,
         )
         self.wait_for_set(ccl.externalnetwork.get, key=external_network_id)
         return external_network_id

@@ -229,6 +229,7 @@ class MaintenanceTests(BasicACLTest):
         )
         vfw1 = self.api.cloudbroker.cloudspace.getVFW(cloudspaceId=self.cloudspace_id)
         self.assertTrue(vfw1)
+        self.nodeId = vfw1["nid"]
 
         osiscl = j.clients.osis.getByInstance("main")
         nodecl = j.clients.osis.getCategory(osiscl, "system", "node")
@@ -248,7 +249,7 @@ class MaintenanceTests(BasicACLTest):
             self.lg("Move VFW1 to CPU1, should fail.")
             with self.assertRaises(HTTPError) as e:
                 self.api.cloudbroker.cloudspace.moveVirtualFirewallToFirewallNode(
-                    cloudspaceId=self.cloudspace_id, targetNid=vfw1["nid"]
+                    cloudspaceId=self.cloudspace_id, targetNid=self.nodeId
                 )
             self.lg("- expected error raised %s" % e.exception.status_code)
             self.assertEqual(e.exception.status_code, 400)
@@ -272,11 +273,11 @@ class MaintenanceTests(BasicACLTest):
                 cloudspaceId=self.cloudspace_id,
             )
             self.assertTrue(self.wait_for_node_status(self.nodeId, "MAINTENANCE"))
-
             self.lg("Enable CPU1, should succeed and check that the vfw is running")
             self.api.cloudbroker.node.enable(nid=self.nodeId, message="test")
             self.assertTrue(self.wait_for_node_status(self.nodeId, "ENABLED"))
             self.nodeId = -1  # prevent enabling the node in tearDown
+
             self.wait_for_status(
                 "RUNNING",
                 self.api.cloudbroker.cloudspace.getVFW,
