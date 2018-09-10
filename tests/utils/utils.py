@@ -726,7 +726,7 @@ class BaseTest(unittest.TestCase):
         disk_id = ccl.disk.searchOne({"$fields": ["id"], "$query": query})["id"]
         return disk_id
 
-    def create_external_network(self, name="", gid=None, vlan=None, account_id=None):
+    def create_external_network(self, name="", gid=None, vlan=301, account_id=None):
         ccl = j.clients.osis.getNamespace("cloudbroker")
         name = name or str(uuid.uuid4()).replace("-", "")[0:10]
         gid = gid or j.application.whoAmI.gid

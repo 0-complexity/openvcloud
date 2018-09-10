@@ -973,17 +973,17 @@ class MachineTests(BasicACLTest):
 
         self.lg("Create external network, should succeed")
         external_network_id = self.create_external_network()
+        try:
+            self.lg("Attach new external network to the machine, should succeed")
+            reponse = self.api.cloudbroker.machine.attachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+            self.assertTrue(reponse)
 
-        self.lg("Attach new external network to the machine, should succeed")
-        reponse = self.api.cloudbroker.machine.attachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
-        self.assertTrue(reponse)
-
-        self.lg("Detach new external network, should succeed")
-        reponse = self.api.cloudbroker.machine.detachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
-        self.assertTrue(reponse)
-
-        self.lg("Remove new external network, should succeed")
-        self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
+            self.lg("Detach new external network, should succeed")
+            reponse = self.api.cloudbroker.machine.detachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+            self.assertTrue(reponse)
+        finally:
+            self.lg("Remove new external network, should succeed")
+            self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
 
         self.lg("%s ENDED" % self._testID)
 
@@ -1004,24 +1004,24 @@ class MachineTests(BasicACLTest):
 
         self.lg("Create external network, should succeed")
         external_network_id = self.create_external_network()
+        try:
+            self.lg("Create machine, should succeed")
+            vm_id = self.cloudapi_create_machine(cloudspace_id=self.cloudspace_id)
 
-        self.lg("Create machine, should succeed")
-        vm_id = self.cloudapi_create_machine(cloudspace_id=self.cloudspace_id)
+            self.lg("Attach new external network to the machine, should succeed")
+            reponse = self.api.cloudbroker.machine.attachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+            self.assertTrue(reponse)
 
-        self.lg("Attach new external network to the machine, should succeed")
-        reponse = self.api.cloudbroker.machine.attachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
-        self.assertTrue(reponse)
+            self.lg("Delete new external network, should fail")
+            with self.assertRaises(HTTPError) as e:
+                self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
+            self.assertEqual(e.exception.status_code, 409)
 
-        self.lg("Delete new external network, should fail")
-        with self.assertRaises(HTTPError) as e:
+            self.lg("Delete created machine, should succeed")
+            self.api.cloudapi.machines.delete(machineId=vm_id, permanently=True)
+        finally:
+            self.lg("Delete new external network, should succeed")
             self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
-        self.assertEqual(e.exception.status_code, 409)
-        
-        self.lg("Delete created machine, should succeed")
-        self.api.cloudapi.machines.delete(machineId=vm_id, permanently=True)
-
-        self.lg("Delete new external network, should succeed")
-        self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
 
         self.lg("%s ENDED" % self._testID)
 
@@ -1037,7 +1037,7 @@ class MachineTests(BasicACLTest):
         self.lg("%s STARTED" % self._testID)
 
         self.lg("Getting external network of default Cloud Space, should succeed")
-        external_network_id = self.api.cloudspaces.get(cloudspaceId=self.cloudspace_id)['externalnetworkId']
+        external_network_id = self.api.models.cloudspace.get(self.cloudspace_id).externalnetworkId
 
         self.lg("Delete Cloud Space's external network, should fail")
         with self.assertRaises(HTTPError) as e:
