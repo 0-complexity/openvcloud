@@ -291,26 +291,21 @@ class cloudapi_disks(BaseActor):
             machines = self.models.vmachine.search(
                 {"disks": diskId, "status": {"$ne": resourcestatus.Machine.DESTROYED}}
             )[1:]
+
         if machines and not detach:
             raise exceptions.Conflict("Can not delete disk which is attached")
         elif machines:
             j.apps.cloudapi.machines.detachDisk(
                 machineId=machines[0]["id"], diskId=diskId, **kwargs
             )
-            disk.status = resourcestatus.Disk.CREATED
+        if permanently:
+            provider = self.cb.getProviderByGID(disk.gid)
+            volume = self.getStorageVolume(disk, provider)
+            provider.destroy_volume(volume)
+            disk.status = resourcestatus.Disk.DESTROYED
+        else:
+            disk.status = resourcestatus.Disk.TOBEDELETED
         disk.deletionTime = int(time.time())
-        if not machines and not permanently:
-            self.models.disk.updateSearch(
-                {"id": diskId}, {"$set": {"status": resourcestatus.Disk.TOBEDELETED}}
-            )
-            return True
-        disk.status = resourcestatus.Disk.DELETED
-        self.models.disk.set(disk)
-
-        provider = self.cb.getProviderByGID(disk.gid)
-        volume = self.getStorageVolume(disk, provider)
-        provider.destroy_volume(volume)
-        disk.status = resourcestatus.Disk.DESTROYED
         self.models.disk.set(disk)
         return True
 

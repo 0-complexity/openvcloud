@@ -302,7 +302,15 @@ class cloudbroker_account(BaseActor):
         for cloudspace in cloudspaces:
             j.apps.cloudbroker.cloudspace._destroy(cloudspace, reason, permanently, ctx)
         disks = self.models.disk.search(
-            {"accountId": accountId, "status": {"$ne": resourcestatus.Disk.DESTROYED}},
+            {
+                "accountId": accountId,
+                "status": {
+                    "$in": [
+                        resourcestatus.Disk.TOBEDELETED,
+                        resourcestatus.Disk.CREATED,
+                    ]
+                },
+            },
             size=0,
         )[1:]
         for disk in disks:
