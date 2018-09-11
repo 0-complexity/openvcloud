@@ -138,9 +138,9 @@ class MachineTests(BasicACLTest):
         self.assertTrue(vm1_nic)
         vm1_ext_ip = vm1_nic["ipAddress"]
         vm1_client = VMClient(vm1_id)
-        vm1_client.execute("ip a a %s dev eth1" % vm1_ext_ip, sudo=True)
+        vm1_client.execute("ip a a %s dev ens6" % vm1_ext_ip, sudo=True)
         vm1_client.execute(
-            "nohup bash -c 'ip l s dev eth1 up </dev/null >/dev/null 2>&1 & '",
+            "nohup bash -c 'ip l s dev ens6 up </dev/null >/dev/null 2>&1 & '",
             sudo=True,
         )
 

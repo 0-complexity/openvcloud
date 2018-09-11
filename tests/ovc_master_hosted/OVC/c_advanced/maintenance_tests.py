@@ -26,12 +26,12 @@ class MaintenanceTests(BasicACLTest):
             self.api.cloudbroker.node.enable(nid=self.nodeId, message="test")
             self.assertTrue(self.wait_for_node_status(self.nodeId, "ENABLED"))
 
-    def wait_till_vm_move(self, vm_id, stackId, status="RUNNING", timeout=100):
+    def wait_till_vm_move(self, vm_id, stackId, status="RUNNING", retry=300):
         """
         stackId: stackId that the vm will move from.
         status: status that need to be checked on after vm migration.
         """
-        for _ in xrange(timeout):
+        for _ in xrange(retry):
             time.sleep(2)
             vm = self.api.cloudbroker.machine.get(machineId=vm_id)
             if vm["stackId"] != stackId:
@@ -41,11 +41,11 @@ class MaintenanceTests(BasicACLTest):
         self.assertNotEqual(vm["stackId"], stackId, "vm didn't move to another stack")
         self.assertEqual(vm["status"], status, "vm is not %s" % status)
 
-    def wait_till_vfw_move(self, cloudspaceId, vfw_node, timeout=100):
+    def wait_till_vfw_move(self, cloudspaceId, vfw_node, retry=300):
         """
         vfw_node: old vfw's cpu-node name.
         """
-        for _ in xrange(timeout):
+        for _ in xrange(retry):
             time.sleep(2)
             vfw = self.api.cloudbroker.cloudspace.getVFW(cloudspaceId=cloudspaceId)
             if vfw["nodename"] != vfw_node:
@@ -164,19 +164,16 @@ class MaintenanceTests(BasicACLTest):
             self.wait_for_status(
                 "HALTED",
                 self.api.cloudapi.machines.get,
-                timeout=30,
                 machineId=machine_1_id,
             )
             self.wait_for_status(
                 "HALTED",
                 self.api.cloudapi.machines.get,
-                timeout=30,
                 machineId=machine_2_id,
             )
             self.wait_for_status(
                 "HALTED",
                 self.api.cloudapi.machines.get,
-                timeout=30,
                 machineId=machine_3_id,
             )
             self.assertTrue(self.wait_for_node_status(self.nodeId, "MAINTENANCE"))
@@ -190,19 +187,16 @@ class MaintenanceTests(BasicACLTest):
             self.wait_for_status(
                 "RUNNING",
                 self.api.cloudapi.machines.get,
-                timeout=30,
                 machineId=machine_1_id,
             )
             self.wait_for_status(
                 "HALTED",
                 self.api.cloudapi.machines.get,
-                timeout=30,
                 machineId=machine_2_id,
             )
             self.wait_for_status(
                 "HALTED",
                 self.api.cloudapi.machines.get,
-                timeout=30,
                 machineId=machine_3_id,
             )
 
@@ -262,7 +256,6 @@ class MaintenanceTests(BasicACLTest):
             self.wait_for_status(
                 "HALTED",
                 self.api.cloudbroker.cloudspace.getVFW,
-                timeout=20,
                 cloudspaceId=self.cloudspace_id,
             )
         else:
@@ -281,7 +274,6 @@ class MaintenanceTests(BasicACLTest):
             self.wait_for_status(
                 "RUNNING",
                 self.api.cloudbroker.cloudspace.getVFW,
-                timeout=30,
                 cloudspaceId=self.cloudspace_id,
             )
 
@@ -309,7 +301,6 @@ class MaintenanceTests(BasicACLTest):
         self.wait_for_status(
             "HALTED",
             self.api.cloudbroker.cloudspace.getVFW,
-            timeout=20,
             cloudspaceId=self.cloudspace_id,
         )
         vfw1 = self.api.cloudbroker.cloudspace.getVFW(cloudspaceId=self.cloudspace_id)
