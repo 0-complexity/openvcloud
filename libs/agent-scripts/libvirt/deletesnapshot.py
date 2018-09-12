@@ -37,7 +37,7 @@ def action(ovs_connection, diskguids, timestamp, name):
             diskinfo = ovs.get(path_get_disk.format(diskguid))
             snapshots = reversed(diskinfo["snapshots"])
             for snapshot in snapshots:
-                if timestamp == snapshot["timestamp"]:
+                if int(timestamp) == int(snapshot["timestamp"]):
                     name = snapshot["label"]
                     break
             if name:
