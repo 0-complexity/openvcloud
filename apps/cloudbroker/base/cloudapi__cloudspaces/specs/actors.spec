@@ -57,6 +57,7 @@
         """
         List all cloudspaces the user has access to
         """
+        var:includedeleted bool,false, included deleted cloud spaces @optional
         result:[], list with every element containing details of a cloudspace as a dict
 
     method:get

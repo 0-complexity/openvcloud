@@ -83,18 +83,20 @@ class cloudbroker_machine(BaseActor):
         """
         if sizeId == -1:
             sizeId = None
-        machine, auth, volumes, cloudspace = j.apps.cloudapi.machines._prepare_machine(
-            cloudspaceId,
-            name,
-            description,
-            imageId,
-            disksize,
-            datadisks,
-            sizeId,
-            vcpus,
-            memory,
-            userdata,
-        )
+        cloudspace = self.models.cloudspace.get(cloudspaceId)
+        with self.models.account.lock(cloudspace.accountId):
+            machine, auth, volumes, cloudspace = j.apps.cloudapi.machines._prepare_machine(
+                cloudspaceId,
+                name,
+                description,
+                imageId,
+                disksize,
+                datadisks,
+                sizeId,
+                vcpus,
+                memory,
+                userdata,
+            )
         machineId = self.cb.machine.create(
             machine, auth, cloudspace, volumes, imageId, stackid, userdata
         )

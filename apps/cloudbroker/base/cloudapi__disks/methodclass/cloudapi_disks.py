@@ -77,6 +77,11 @@ class cloudapi_disks(BaseActor):
         :return the id of the created disk
 
         """
+        account = self.models.account.get(accountId)
+        if account.status in resourcestatus.Account.INVALID_STATES:
+            raise exceptions.BadRequest(
+                "Can not create a disk on deleted Account"
+            )
         with self.models.account.lock(accountId):
             # Validate that enough resources are available in the account CU limits to add the disk
             j.apps.cloudapi.accounts.checkAvailableMachineResources(
@@ -362,7 +367,7 @@ class cloudapi_disks(BaseActor):
         if not disk or disk["status"] == resourcestatus.Disk.DESTROYED:
             raise exceptions.NotFound("Couldn't find disk with id: %s" % diskId)
         if (
-            account.status == resourcestatus.Account.DELETED
+            account.status in resourcestatus.Account.INVALID_STATES
             and "diskrestore" not in kwargs
         ):
             raise exceptions.BadRequest("Cannot restore a disk on a deleted account")

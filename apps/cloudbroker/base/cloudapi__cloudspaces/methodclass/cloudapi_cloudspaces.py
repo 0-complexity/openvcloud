@@ -584,7 +584,7 @@ class cloudapi_cloudspaces(BaseActor):
         if cloudspace["status"] != resourcestatus.Cloudspace.DELETED:
             raise exceptions.BadRequest("Can only restore a deleted cloudspace")
         if (
-            account.status == resourcestatus.Account.DELETED
+            account.status in resourcestatus.Account.INVALID_STATES
             and "accrestore" not in kwargs
         ):
             raise exceptions.BadRequest(
@@ -662,7 +662,7 @@ class cloudapi_cloudspaces(BaseActor):
             )
         return True
 
-    def list(self, **kwargs):
+    def list(self, includedeleted=False, **kwargs):
         """
         List all cloudspaces the user has access to
 
@@ -702,9 +702,13 @@ class cloudapi_cloudspaces(BaseActor):
             "creationTime",
             "updateTime",
         ]
+        excludestates = resourcestatus.Cloudspace.INVALID_STATES[:]
+        if includedeleted:
+            excludestates.remove(resourcestatus.Cloudspace.DELETED)
+
         q = {
             "$or": [{"acl.userGroupId": user}, {"id": {"$in": list(cloudspaceaccess)}}],
-            "status": {"$ne": resourcestatus.Cloudspace.DESTROYED},
+            "status": {"$nin": excludestates},
         }
         query = {"$query": q, "$fields": fields}
         cloudspaces = self.models.cloudspace.search(query)[1:]

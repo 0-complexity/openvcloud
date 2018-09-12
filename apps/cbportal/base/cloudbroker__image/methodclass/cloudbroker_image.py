@@ -120,8 +120,12 @@ class cloudbroker_image(BaseActor):
         hotresize=True,
         **kwargs
     ):
-        if accountId and not self.models.account.exists(accountId):
-            raise exceptions.BadRequest("Specified accountId does not exist")
+        if accountId:
+            account = self.models.account.searchOne({"id": accountId})
+            if not account:
+                raise exceptions.BadRequest("Specified accountId does not exist")
+            elif account["status"] in resourcestatus.Account.INVALID_STATES:
+                raise exceptions.BadRequest("Can not create an image on deleted Account")
         if boottype not in ["bios", "uefi"]:
             raise exceptions.BadRequest(
                 "Invalid boottype, should be either uefi or bios"
@@ -293,8 +297,12 @@ class cloudbroker_image(BaseActor):
 
     @auth(groups=["level1", "level2", "level3"])
     def createCDROMImage(self, name, url, gid, accountId=None, **kwargs):
-        if accountId and not self.models.account.exists(accountId):
-            raise exceptions.BadRequest("Specified accountId does not exists")
+        if accountId:
+            account = self.models.account.searchOne({"id": accountId})
+            if not account:
+                raise exceptions.BadRequest("Specified accountId does not exist")
+            elif account["status"] in resourcestatus.Account.INVALID_STATES:
+                raise exceptions.BadRequest("Can not create a CD-ROM image on deleted Account")
         bytesize = self._getImageSize(url)
         ctx = kwargs["ctx"]
         ctx.events.runAsync(

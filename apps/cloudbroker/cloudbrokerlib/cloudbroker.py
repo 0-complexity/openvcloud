@@ -588,6 +588,10 @@ class Machine(object):
             raise exceptions.BadRequest(
                 "Can not create machine on destroyed Cloud Space"
             )
+        elif cloudspace.status == resourcestatus.Cloudspace.DELETED:
+            raise exceptions.BadRequest(
+                "Can not create machine on deleted Cloud Space, restore it first"
+            )
 
         image = models.image.get(imageId)
         if image.accountId and image.accountId != cloudspace.accountId:

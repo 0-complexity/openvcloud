@@ -760,6 +760,11 @@ class cloudapi_machines(BaseActor):
         param:sizeId the size id of the machine
         param:callbackUrl callback url so that the API caller can be notified. If this is specified the G8 will not send an email itself upon completion.
         """
+        cloudspace = self.models.cloudspace.get(cloudspaceId)
+        if cloudspace.status in resourcestatus.Cloudspace.INVALID_STATES:
+            raise exceptions.BadRequest(
+                "Can not import machine on a deleted Cloud Space"
+            )
         self._validate_links(link=link)
         if callbackUrl is not None:
             self._validate_links(callbackUrl=callbackUrl)
@@ -771,7 +776,6 @@ class cloudapi_machines(BaseActor):
             "path": path,
             "username": username,
         }
-        cloudspace = self.models.cloudspace.get(cloudspaceId)
         job = self.acl.executeJumpscript(
             "greenitglobe",
             "cloudbroker_getenvelope",
@@ -1247,7 +1251,7 @@ class cloudapi_machines(BaseActor):
         if machine["status"] != resourcestatus.Machine.DELETED:
             raise exceptions.BadRequest("Can't restore a non deleted machine")
         if (
-            cloudspace.status == resourcestatus.Cloudspace.DELETED
+            cloudspace.status in resourcestatus.Cloudspace.INVALID_STATES
             and "csrestore" not in kwargs
         ):
             raise exceptions.BadRequest(

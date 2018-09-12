@@ -14,3 +14,5 @@ apps/osis/logic/cryptopayment
 .idea
 .vscode
 node_modules/
+tests/logs/
+apps/cloudbroker/base/libcloud__libvirt/methodclass/libcloud_libvirt.gen.py

@@ -132,7 +132,7 @@ class cloudapi_images(BaseActor):
         account = self.models.account.searchOne({"id": image["accountId"]})
         if (
             account
-            and account["status"] == resourcestatus.Account.DELETED
+            and account["status"] in resourcestatus.Account.INVALID_STATES
             and "imgrestore" not in kwargs
         ):
             raise exceptions.BadRequest("Cannot restore an image on a deleted account")
