@@ -144,9 +144,11 @@ class MachineTests(BasicACLTest):
             sudo=True,
         )
 
+        time.sleep(5)
+
         self.lg("Check if you can ping VM1 from outside, should succeed")
         vm1_ext_ip = vm1_ext_ip[: vm1_ext_ip.find("/")]
-        response = os.system("ping -c 1 %s" % vm1_ext_ip)
+        response = os.system("ping -c 3 %s" % vm1_ext_ip)
         self.assertFalse(response)
 
         self.lg("Check that you can connect to vm with new ip ,should succeed")

@@ -112,6 +112,7 @@ class MaintenanceTests(BasicACLTest):
         #. Leave one VM running, stop one, and pause another, should succeed.
         #. Put node in maintenance with migrate all vms, should succeed.
         #. Check if the 3 VMs have been migrated keeping their old state, should succeed.
+        #. Wait until VM1's vfw be running.
         #. Check that the running VM is working well (option=move vms), should succeed.
         #. Enable the node back, should succeed.
         """
@@ -156,6 +157,14 @@ class MaintenanceTests(BasicACLTest):
             self.wait_till_vm_move(machine_2_id, self.stackId, status="HALTED")
             self.wait_till_vm_move(machine_3_id, self.stackId, status="PAUSED")
             self.assertTrue(self.wait_for_node_status(self.nodeId, "MAINTENANCE"))
+
+            self.lg("Wait until VM1's vfw be running")
+            self.wait_for_status(
+                "RUNNING",
+                self.api.cloudbroker.cloudspace.getVFW,
+                cloudspaceId=self.cloudspace_id,
+            )
+            
             self.lg("Check that the running VM is working well, should succeed")
             machine_1_client = VMClient(machine_1_id)
             stdin, stdout, stderr = machine_1_client.execute("uname")
