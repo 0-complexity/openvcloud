@@ -313,6 +313,7 @@ class MaintenanceTests(BasicACLTest):
             cloudspaceId=self.cloudspace_id,
         )
         vfw1 = self.api.cloudbroker.cloudspace.getVFW(cloudspaceId=self.cloudspace_id)
+        self.nodeId = vfw1["nid"]
 
         self.lg("Put VFW's node (CPU1) in maintenance, should succeed.")
         self.api.cloudbroker.node.maintenance(nid=self.nodeId, vmaction=migrate_option)
