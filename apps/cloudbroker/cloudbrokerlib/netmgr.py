@@ -94,7 +94,7 @@ class NetManager(object):
         fwobj.vlan = vlan
         fwobj.pubips = [publicip]
         fwobj.type = type
-        fwobj.state = 'STARTED'
+        fwobj.state = "STARTED"
         key = self.osisvfw.set(fwobj)[0]
         args = {"name": "%s_%s" % (fwobj.domain, fwobj.name)}
         if type == "routeros":
@@ -174,7 +174,9 @@ class NetManager(object):
             "externalip": fwobj.pubips[0],
             "sourceip": sourceip,
         }
-        self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+        self.osisvfw.updateSearch(
+            {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+        )
         job = self.cb.executeJumpscript(
             "jumpscale", "vfs_migrate_routeros", nid=targetNid, gid=fwobj.gid, args=args
         )
@@ -191,7 +193,9 @@ class NetManager(object):
                 gid=fwobj.gid,
                 args=args,
             )
-            self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"nid": targetNid}})
+            self.osisvfw.updateSearch(
+                {"guid": fwobj.guid}, {"$set": {"nid": targetNid}}
+            )
         return job["result"]
 
     def fw_executescript(self, fwid, script):
@@ -234,7 +238,9 @@ class NetManager(object):
     def fw_remove_lease(self, fwid, macaddress):
         fwobj = self._getVFWObject(fwid)
         args = {"fwobject": fwobj.obj2dict(), "macaddress": macaddress}
-        self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+        self.osisvfw.updateSearch(
+            {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+        )
         job = self.cb.executeJumpscript(
             "jumpscale",
             "vfs_remove_lease_routeros",
@@ -256,7 +262,9 @@ class NetManager(object):
             "username": username,
             "password": password,
         }
-        self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+        self.osisvfw.updateSearch(
+            {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+        )
         job = self.cb.executeJumpscript(
             "jumpscale",
             "vfs_set_password_routeros",
@@ -291,7 +299,9 @@ class NetManager(object):
         """
         fwobj = self.osisvfw.get(fwid)
         args = {"name": "%s_%s" % (fwobj.domain, fwobj.name)}
-        self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+        self.osisvfw.updateSearch(
+            {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+        )
         if fwobj.type == "routeros":
             args = {"networkid": fwobj.id}
             if fwobj.nid:
@@ -381,7 +391,9 @@ class NetManager(object):
         protocol = protocol or "tcp"
         with self.osisvfw.lock(fwid):
             fwobj = self._getVFWObject(fwid)
-            self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+            self.osisvfw.updateSearch(
+                {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+            )
             for tcprule in fwobj.tcpForwardRules:
                 if (
                     tcprule.fromAddr == fwip
@@ -413,7 +425,9 @@ class NetManager(object):
 
     def fw_reapply(self, fwid):
         fwobj = self._getVFWObject(fwid).obj2dict()
-        self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+        self.osisvfw.updateSearch(
+            {"guid": fwobj["guid"]}, {"$set": {"moddate": int(time.time())}}
+        )
         fwobj["leases"] = self.cb.cloudspace.get_leases(int(fwobj["domain"]))
         args = {"name": "%(domain)s_%(name)s" % fwobj, "fwobject": fwobj}
         return self._applyconfig(fwobj["gid"], fwobj["nid"], args)
@@ -440,7 +454,9 @@ class NetManager(object):
         """
         with self.osisvfw.lock(fwid):
             fwobj = self._getVFWObject(fwid)
-            self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+            self.osisvfw.updateSearch(
+                {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+            )
             change = False
             result = False
             for rule in fwobj.tcpForwardRules:
@@ -561,7 +577,9 @@ class NetManager(object):
                 cloudspace.privatenetwork,
             )
         fwobj = self._getVFWObject(fwid)  # to get updated model
-        self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+        self.osisvfw.updateSearch(
+            {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+        )
         args = {"fwobject": fwobj.obj2dict()}
         if fwobj.type == "routeros":
             job = self.cb.executeJumpscript(
@@ -587,7 +605,9 @@ class NetManager(object):
         param:gid grid id
         """
         fwobj = self._getVFWObject(fwid)
-        self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+        self.osisvfw.updateSearch(
+            {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+        )
         args = {"networkid": fwobj.id}
         if fwobj.type == "routeros":
             job = self.cb.executeJumpscript(
@@ -613,7 +633,9 @@ class NetManager(object):
         param:gid grid id
         """
         fwobj = self._getVFWObject(fwid)
-        self.osisvfw.updateSearch({"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}})
+        self.osisvfw.updateSearch(
+            {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
+        )
         args = {"networkid": fwobj.id}
         if fwobj.type == "routeros":
             job = self.cb.executeJumpscript(
