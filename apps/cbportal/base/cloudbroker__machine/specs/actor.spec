@@ -118,7 +118,8 @@
         Deletes a machine snapshot
         """
         var:machineId int,,Machine id
-        var:epoch int,,Snapshot timestamp
+        var:epoch int,,Snapshot timestamp @optional
+        var:name str,,Snapshot name @optional
         var:reason str,,Reason
 
     method:clone

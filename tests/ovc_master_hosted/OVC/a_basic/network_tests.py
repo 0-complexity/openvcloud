@@ -317,7 +317,7 @@ class NetworkBasicTests(BasicACLTest):
 
         self.lg("Create external network (EN1) with empty vlan tag, should succeed")
         try:
-            external_network_id = self.create_external_network(name="test-external-network")
+            external_network_id = self.create_external_network(name="test-external-network", vlan=None)
             self.lg("Get external network (EN1)'s info using osis client")
             osis_client = j.clients.osis.getNamespace("cloudbroker")
             external_network_info = osis_client.externalnetwork.get(external_network_id)
