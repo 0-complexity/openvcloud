@@ -15,25 +15,24 @@ queue = "default"
 docleanup = True
 
 
-def cleanup(name, networkid):
+def cleanup(name, networkid, bridge):
     import libvirt
     from CloudscalerLibcloud.utils.network import Network
 
     network = Network()
     con = network.libvirtutil.connection
     try:
-        dom = con.lookupByName(name)
-        network.cleanup_external(dom)
-        network.cleanup_gwmgmt(dom)
-        if dom.isActive():
-            dom.destroy()
-        dom.undefine()
-    except libvirt.libvirtError:
-        pass
-
-    try:
-        network.libvirt.cleanupNetwork(networkid)
-    except:
+        try:
+            dom = con.lookupByName(name)
+            network.cleanup_external(dom)
+            network.cleanup_gwmgmt(dom)
+            if dom.isActive():
+                dom.destroy()
+            dom.undefine()
+        except libvirt.libvirtError:
+            pass
+        network.libvirtutil.cleanupNetwork(networkid, [bridge])
+    finally:
         network.close()
 
     destinationfile = "/var/lib/libvirt/images/routeros/{:04x}/routeros.qcow2".format(
@@ -43,14 +42,17 @@ def cleanup(name, networkid):
         j.system.fs.remove(destinationfile)
 
 
-def createVM(xml):
-    import libvirt
-
-    con = libvirt.open()
+def createVM(xml, netinfo):
+    from CloudscalerLibcloud.utils.network import NetworkTool
+    from CloudscalerLibcloud.utils import libvirtutil
+    con = libvirtutil.LibvirtUtil()
     try:
-        dom = con.defineXML(xml)
-        dom.create()
-        return dom.UUIDString()
+        with NetworkTool(netinfo, con):
+            # setup network vxlan
+            print ("Creating network")
+            dom = con.connection.defineXML(xml)
+            dom.create()
+            return dom.UUIDString()
     finally:
         con.close()
 
@@ -69,6 +71,7 @@ def action(networkid, publicip, publicgwip, publiccidr, password, vlan, privaten
     defaultpasswd = hrd.get("instance.vfw.admin.passwd")
     username = hrd.get("instance.vfw.admin.login")
     newpassword = hrd.get("instance.vfw.admin.newpasswd")
+    bridgename = j.system.ovsnetconfig.getVlanBridge(vlan)
     destinationfile = None
 
     data = {
@@ -86,7 +89,7 @@ def action(networkid, publicip, publicgwip, publiccidr, password, vlan, privaten
     name = "routeros_%s" % networkidHex
 
     j.clients.redisworker.execFunction(
-        cleanup, _queue="hypervisor", name=name, networkid=networkid
+        cleanup, _queue="hypervisor", name=name, networkid=networkid, bridge=bridgename
     )
     print "Testing network"
     if not j.system.net.tcpPortConnectionTest(internalip, 22, 1):
@@ -113,27 +116,22 @@ def action(networkid, publicip, publicgwip, publiccidr, password, vlan, privaten
                 j.system.fs.joinPaths(imagedir, "routeros-template.xml")
             )
         )
+        xmlsource = xmltemplate.render(
+            networkid=networkidHex,
+            destinationfile=destinationfile,
+            publicbridge=bridgename,
+        )
 
-        with NetworkTool(netinfo, connection):
-            # setup network vxlan
-            print ("Creating network")
-            bridgename = j.system.ovsnetconfig.getVlanBridge(vlan)
-            xmlsource = xmltemplate.render(
-                networkid=networkidHex,
-                destinationfile=destinationfile,
-                publicbridge=bridgename,
+        print "Starting VM"
+        try:
+            domuuid = j.clients.redisworker.execFunction(
+                createVM, _queue="hypervisor", xml=xmlsource, netinfo=netinfo, _timeout=180
             )
-
-            print "Starting VM"
-            try:
-                domuuid = j.clients.redisworker.execFunction(
-                    createVM, _queue="hypervisor", xml=xmlsource, _timeout=180
-                )
-            except Exception, e:
-                raise RuntimeError(
-                    "Could not create VFW vm from template, network id:%s:%s\n%s"
-                    % (networkid, networkidHex, e)
-                )
+        except Exception, e:
+            raise RuntimeError(
+                "Could not create VFW vm from template, network id:%s:%s\n%s"
+                % (networkid, networkidHex, e)
+            )
         print "Protect network"
         domain = connection.get_domain_obj(domuuid)
         network.protect_external(domain, publicip)
@@ -267,7 +265,7 @@ def action(networkid, publicip, publicgwip, publiccidr, password, vlan, privaten
     except:
         if docleanup:
             j.clients.redisworker.execFunction(
-                cleanup, _queue="hypervisor", name=name, networkid=networkid
+                cleanup, _queue="hypervisor", name=name, networkid=networkid, bridge=bridgename
             )
         raise
     finally:
