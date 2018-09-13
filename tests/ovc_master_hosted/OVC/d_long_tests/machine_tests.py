@@ -8,6 +8,7 @@ import threading
 import os, requests
 import gevent
 
+
 class MachineLongTests(BasicACLTest):
     def setUp(self):
         super(MachineLongTests, self).setUp()
@@ -104,6 +105,8 @@ class MachineLongTests(BasicACLTest):
             if not imported_vm_id:
                 self.fail("can't import vm")
 
+            imported_vm_id = imported_vm_id[0]
+
             self.wait_for_status(
                 "RUNNING", self.api.cloudapi.machines.get, machineId=imported_vm_id
             )
@@ -113,7 +116,7 @@ class MachineLongTests(BasicACLTest):
 
             self.lg("Check that file (F1) exists in the imported virtual machine")
             imported_vm_client = VMClient(
-                imported_vm_id[0],
+                imported_vm_id,
                 login=machine_1_client.login,
                 password=machine_1_client.password,
                 timeout=120,
@@ -147,8 +150,10 @@ class MachineLongTests(BasicACLTest):
         #. create 100 vms
         #. make sure all are in RUNNING state
         """
+
         def get_vm_name(cloudspace_id, counter):
             return "vm-mass-{0}-{1:0>3}".format(cloudspace_id, counter)
+
         jobs = []
         # Create vms in this cloud space
         expected_vms = [get_vm_name(self.cloudspace_id, x) for x in range(1, 101)]

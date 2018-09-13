@@ -4,6 +4,7 @@ from ....utils.utils import BasicACLTest, VMClient
 from nose_parameterized import parameterized
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
+from JumpScale import j
 import time
 import threading
 import os, requests
@@ -136,20 +137,18 @@ class MachineTests(BasicACLTest):
         vm1_nics = self.api.cloudapi.machines.get(machineId=vm1_id)["interfaces"]
         vm1_nic = [x for x in vm1_nics if "externalnetworkId" in x["params"]][0]
         self.assertTrue(vm1_nic)
+
         vm1_ext_ip = vm1_nic["ipAddress"]
         vm1_client = VMClient(vm1_id)
         vm1_client.execute("ip a a %s dev ens6" % vm1_ext_ip, sudo=True)
-        vm1_client.execute(
-            "nohup bash -c 'ip l s dev ens6 up </dev/null >/dev/null 2>&1 & '",
-            sudo=True,
-        )
+        vm1_client.execute("ip link set dev ens6 up", wait=False, sudo=True)
 
         time.sleep(5)
 
         self.lg("Check if you can ping VM1 from outside, should succeed")
         vm1_ext_ip = vm1_ext_ip[: vm1_ext_ip.find("/")]
-        response = os.system("ping -c 3 %s" % vm1_ext_ip)
-        self.assertFalse(response)
+        response = j.system.net.ping(vm1_ext_ip, count=30, interval=1)
+        self.assertTrue(response.get("received"))
 
         self.lg("Check that you can connect to vm with new ip ,should succeed")
         vm1_client = VMClient(vm1_id, external_network=True)
@@ -977,11 +976,15 @@ class MachineTests(BasicACLTest):
         external_network_id = self.create_external_network()
         try:
             self.lg("Attach new external network to the machine, should succeed")
-            reponse = self.api.cloudbroker.machine.attachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+            reponse = self.api.cloudbroker.machine.attachExternalNetwork(
+                machineId=vm_id, externalNetworkId=external_network_id
+            )
             self.assertTrue(reponse)
 
             self.lg("Detach new external network, should succeed")
-            reponse = self.api.cloudbroker.machine.detachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+            reponse = self.api.cloudbroker.machine.detachExternalNetwork(
+                machineId=vm_id, externalNetworkId=external_network_id
+            )
             self.assertTrue(reponse)
         finally:
             self.lg("Remove new external network, should succeed")
@@ -1011,7 +1014,9 @@ class MachineTests(BasicACLTest):
             vm_id = self.cloudapi_create_machine(cloudspace_id=self.cloudspace_id)
 
             self.lg("Attach new external network to the machine, should succeed")
-            reponse = self.api.cloudbroker.machine.attachExternalNetwork(machineId=vm_id, externalNetworkId=external_network_id)
+            reponse = self.api.cloudbroker.machine.attachExternalNetwork(
+                machineId=vm_id, externalNetworkId=external_network_id
+            )
             self.assertTrue(reponse)
 
             self.lg("Delete new external network, should fail")
@@ -1039,7 +1044,9 @@ class MachineTests(BasicACLTest):
         self.lg("%s STARTED" % self._testID)
 
         self.lg("Getting external network of default Cloud Space, should succeed")
-        external_network_id = self.api.models.cloudspace.get(self.cloudspace_id).externalnetworkId
+        external_network_id = self.api.models.cloudspace.get(
+            self.cloudspace_id
+        ).externalnetworkId
 
         self.lg("Delete Cloud Space's external network, should fail")
         with self.assertRaises(HTTPError) as e:
@@ -1047,4 +1054,3 @@ class MachineTests(BasicACLTest):
         self.assertEqual(e.exception.status_code, 409)
 
         self.lg("%s ENDED" % self._testID)
-
