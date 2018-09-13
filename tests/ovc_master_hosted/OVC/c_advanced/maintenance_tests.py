@@ -20,11 +20,11 @@ class MaintenanceTests(BasicACLTest):
         self.gridId = self.get_node_gid(self.stackId)
 
     def tearDown(self):
-        super(MaintenanceTests, self).tearDown()
         if self.nodeId != -1:
             self.lg("Enable CPU1, should succeed")
             self.api.cloudbroker.node.enable(nid=self.nodeId, message="test")
             self.assertTrue(self.wait_for_node_status(self.nodeId, "ENABLED"))
+        super(MaintenanceTests, self).tearDown()
 
     def wait_till_vm_move(self, vm_id, stackId, status="RUNNING", retry=300):
         """
@@ -56,6 +56,24 @@ class MaintenanceTests(BasicACLTest):
             vfw["nodename"], vfw_node, "vfw didn't move to another stack"
         )
 
+    def wait_till_maintenance_done(self, nid, retry=300):
+        vcl = j.clients.osis.getNamespace("vfw")
+        for _ in xrange(retry):
+            time.sleep(2)
+            stack = self.api.models.stack.searchOne({"referenceId": str(nid)})
+            vm_states = ["DESTROYED", "DELETED", "ERROR", "HALTED"]
+            usedvms = self.api.models.vmachine.count(
+            {
+                "stackId": stack["id"],
+                "status": {"$nin": vm_states},
+            }
+            )
+            roscount = vcl.virtualfirewall.count({"gid": stack["gid"], "nid": nid})
+            if not roscount and not usedvms:
+                break
+        else:
+            raise RuntimeError("Putting node in maintenance took longer than expected")
+
     def test001_check_vm_ext_net_migration(self):
         """ OVC-052
         *Test case for checking vm migration in which it is attached to external network*
@@ -86,6 +104,7 @@ class MaintenanceTests(BasicACLTest):
         )
         self.lg("Put node in maintenance with migrate all vms, should succeed")
         self.api.cloudbroker.node.maintenance(nid=self.nodeId, vmaction="move")
+        self.wait_till_maintenance_done(self.nodeId)
 
         self.lg("Make sure VM1 has been moved to another cpu-node.")
         self.wait_till_vm_move(vm_id, self.stackId)
@@ -148,6 +167,7 @@ class MaintenanceTests(BasicACLTest):
 
         self.lg("Put node in maintenance with migrate all vms, should succeed")
         self.api.cloudbroker.node.maintenance(nid=self.nodeId, vmaction=migrate_option)
+        self.wait_till_maintenance_done(self.nodeId)
 
         self.lg(
             "Check if the 3 VMs have been migrated keeping their old state, should succeed"
@@ -241,6 +261,7 @@ class MaintenanceTests(BasicACLTest):
 
         self.lg("Put VFW's node (CPU1) in maintenance, should succeed.")
         self.api.cloudbroker.node.maintenance(nid=self.nodeId, vmaction=migrate_option)
+        self.wait_till_maintenance_done(self.nodeId)
 
         if migrate_option == "move":
             self.lg(
@@ -317,6 +338,7 @@ class MaintenanceTests(BasicACLTest):
 
         self.lg("Put VFW's node (CPU1) in maintenance, should succeed.")
         self.api.cloudbroker.node.maintenance(nid=self.nodeId, vmaction=migrate_option)
+        self.wait_till_maintenance_done(self.nodeId)
         self.assertTrue(self.wait_for_node_status(self.nodeId, "MAINTENANCE"))
 
         self.lg("Start VFW, and make sure it has been moved to another cpu-node.")
