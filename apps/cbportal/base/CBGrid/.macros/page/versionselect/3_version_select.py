@@ -18,12 +18,17 @@ def main(j, args, params, tags, tasklet):
         contents = requests.get(
             "https://api.github.com/repos/0-complexity/home/contents/manifests"
         ).json()
-    current_version = scl.version.searchOne({"status": "CURRENT"})
+
+    current_version = None
+    for status in ["CURRENT", "INSTALLING", "ERROR"]:
+        current_version = scl.version.searchOne({"status": status})
+        if current_version:
+            break
+        
     if not current_version:
-        current_version = scl.version.searchOne({"status": "INSTALLING"})
-        if not current_version:
-            page.addMessage("Failed to detect current version")
-            return params
+        page.addMessage("Failed to detect current version")
+        return params
+
     current_version_name = current_version["name"]
     versions = []
     for file in contents:
