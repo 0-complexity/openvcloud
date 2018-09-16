@@ -39,22 +39,23 @@ def is_up_to_date(current, target):
 
 def action():
     scl = j.clients.osis.getNamespace("system")
-    current = get_current_version()
-    version = scl.version.searchOne({"status": "CURRENT"})
-    target = yaml.load(version["manifest"])
-    if not is_up_to_date(current, target):
-        whoami = j.application.whoAmI
-        nodename = scl.node.get(whoami.nid).name.split(".")[0]
-        args = {"nodename": nodename}
-        acl = j.clients.agentcontroller.get()
-        acl.executeJumpscript(
-            "greenitglobe",
-            "update_node",
-            role="controllernode",
-            gid=whoami.gid,
-            args=args,
-            wait=False,
-        )
+    if not scl.version.count({"status": "INSTALLING"}):
+        current = get_current_version()
+        version = scl.version.searchOne({"status": "CURRENT"})
+        target = yaml.load(version["manifest"])
+        if not is_up_to_date(current, target):
+            whoami = j.application.whoAmI
+            nodename = scl.node.get(whoami.nid).name.split(".")[0]
+            args = {"nodename": nodename}
+            acl = j.clients.agentcontroller.get()
+            acl.executeJumpscript(
+                "greenitglobe",
+                "update_node",
+                role="controllernode",
+                gid=whoami.gid,
+                args=args,
+                wait=False,
+            )
 
 
 if __name__ == "__main__":
