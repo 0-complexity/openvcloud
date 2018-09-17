@@ -96,7 +96,7 @@
         var:cutype str,, cloud unit resource type
         result:float, float/int for the consumed cloud unit of the specified type
 
-    method: getConsumption @method:get
+    method: getConsumption @method:get,post
         """
         download the resources traking files for an account within a given period
         """

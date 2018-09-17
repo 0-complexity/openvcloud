@@ -687,17 +687,41 @@ class cloudapi_accounts(BaseActor):
                 int(path_list[-1]),
             )
             if path_date >= start_time and path_date <= end_time:
-                pathes_in_range.append(path)
-        ctx.start_response(
-            "200 OK",
-            [
-                ("content-type", "application/octet-stream"),
-                ("content-disposition", "inline; filename = account.zip"),
-            ],
-        )
-        fp = StringIO()
-        with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as zip:
-            for path in pathes_in_range:
+                pathes_in_range.append((path_date, path))
+        if (
+            ctx.env.get("HTTP_ACCEPT") == "application/json"
+            or ctx.env["REQUEST_METHOD"] == "POST"
+        ):
+            import CloudscalerLibcloud
+            import capnp
+            import time
+
+            capnp.remove_import_hook()
+            schemapath = os.path.join(
+                os.path.dirname(CloudscalerLibcloud.__file__), "schemas"
+            )
+            resources_capnp = capnp.load(
+                os.path.join(schemapath, "resourcemonitoring.capnp")
+            )
+            consumption = {}
+            for date, path in pathes_in_range:
+                timestamp = time.mktime(date.timetuple())
                 file_path = os.path.join(path, "account_capnp.bin")
-                zip.write(file_path, file_path.replace(root_path, ""))
-        return fp.getvalue()
+                with open(file_path, "rb") as fd:
+                    accountdata = resources_capnp.Account.read(fd).to_dict()
+                consumption[int(timestamp)] = accountdata
+            return consumption
+        else:
+            ctx.start_response(
+                "200 OK",
+                [
+                    ("content-type", "application/octet-stream"),
+                    ("content-disposition", "inline; filename = account.zip"),
+                ],
+            )
+            fp = StringIO()
+            with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as zip:
+                for _, path in pathes_in_range:
+                    file_path = os.path.join(path, "account_capnp.bin")
+                    zip.write(file_path, file_path.replace(root_path, ""))
+            return fp.getvalue()
