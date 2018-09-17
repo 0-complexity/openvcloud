@@ -38,6 +38,8 @@ def is_up_to_date(current, target):
 
 
 def action():
+    if j.system.platformtype.isVirtual():
+        return
     scl = j.clients.osis.getNamespace("system")
     status = scl.node.get(j.application.whoAmI.nid).status
     if not scl.version.count({"status": "INSTALLING"}) and status == "ENABLED":
@@ -52,7 +54,7 @@ def action():
             acl.executeJumpscript(
                 "greenitglobe",
                 "update_node",
-                role="controllernode",
+                role="controller",
                 gid=whoami.gid,
                 args=args,
                 wait=False,

@@ -14,10 +14,8 @@ async = True
 
 
 def action(nodename):
-    cmd = "kubectl --kubeconfig /root/.kube/config get service management-ssh -o=jsonpath='{.spec.clusterIP}'"
-    host = j.system.process.execute(cmd)[1]
     try:
-        mgt = j.remote.cuisine.connect(host, 22)
+        mgt = j.remote.cuisine.connect('management', 2205)
         mgt.run("installer node jsaction upgrade --name {}".format(nodename))
     except:
         j.errorconditionhandler.raiseOperationalWarning(
