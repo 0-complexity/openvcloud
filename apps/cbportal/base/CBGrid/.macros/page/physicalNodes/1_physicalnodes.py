@@ -1,17 +1,17 @@
 def main(j, args, params, tags, tasklet):
-    from cloudbrokerlib.cloudbroker import CloudBroker
+    from cloudbrokerlib.cloudbroker import db, CloudBroker
 
     page = args.page
     modifier = j.html.getPageModifierGridDataTables(page)
+    cb = CloudBroker()
 
     imageid = args.getTag("imageid")
     filters = dict(roles={"$in": ["cpunode", "storagenode"]})
     grids = dict()
-    cb = CloudBroker()
     query = {"$fields": ["id", "memory"]}
     nodesbyid = {
         node["id"]: node["memory"]
-        for node in cb.syscl.node.search(query)[1:]
+        for node in db.system.node.search(query)[1:]
         if "memory" in node
     }
 
@@ -34,7 +34,7 @@ def main(j, args, params, tags, tasklet):
     def get_grid(stack):
         gid = stack["gid"]
         if gid not in grids:
-            grid = cb.syscl.grid.get(gid)
+            grid = db.system.grid.get(gid)
             grids[gid] = grid
         return grids[gid]
 
@@ -44,7 +44,7 @@ def main(j, args, params, tags, tasklet):
             cb.getStackCapacity(stack, grid, nodesbyid)
 
     def get_vms(node, column):
-        stack = cb.cbcl.stack.searchOne({"referenceId": str(node["id"])})
+        stack = db.cloudbroker.stack.searchOne({"referenceId": str(node["id"])})
         if stack:
             fill_stack(stack)
             return "{} + {}".format(stack["usedros"], stack["usedvms"])

@@ -11,10 +11,6 @@ from cloudbrokerlib import resourcestatus
 
 
 class cloudbroker_grid(BaseActor):
-    def __init__(self):
-        super(cloudbroker_grid, self).__init__()
-        self.sysmodels = j.clients.osis.getNamespace("system")
-
     @auth(groups=["level1", "level2", "level3"])
     def purgeLogs(self, gid, age="-3d", **kwargs):
         return self.cb.executeJumpscript(

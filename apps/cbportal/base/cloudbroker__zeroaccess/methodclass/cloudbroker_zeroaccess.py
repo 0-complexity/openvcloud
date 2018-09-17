@@ -15,7 +15,6 @@ class cloudbroker_zeroaccess(BaseActor):
         super(cloudbroker_zeroaccess, self).__init__()
         self.zeroaccessurl = "http://zero-access:5000"
         self.iyoinstance = j.clients.oauth.get(instance="itsyouonline")
-        self.ocl = j.clients.osis.getNamespace("system")
 
     def _get_jwt(self, ctx):
         return self.iyoinstance.get_active_jwt(session=ctx.env["beaker.session"])
@@ -32,8 +31,8 @@ class cloudbroker_zeroaccess(BaseActor):
             """
             mgmt_ip = socket.gethostbyname("management-ssh")
             nodes = {mgmt_ip: {"name": "management", "guid": "0"}}
-            for node_id in self.ocl.node.list():
-                node = self.ocl.node.get(node_id)
+            for node_id in self.sysmodels.node.list():
+                node = self.sysmodels.node.get(node_id)
                 if "master" in node.roles:
                     continue
                 else:
@@ -144,7 +143,7 @@ class cloudbroker_zeroaccess(BaseActor):
         if node_id == "0":
             return "management", socket.gethostbyname("management-ssh")
         remote = None
-        node = self.ocl.node.get(node_id)
+        node = self.sysmodels.node.get(node_id)
         node_name = node.name
         for addr in node.netaddr:
             if addr["name"] == "backplane1":

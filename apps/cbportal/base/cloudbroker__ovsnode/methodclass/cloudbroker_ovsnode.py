@@ -7,7 +7,6 @@ from cloudbrokerlib.baseactor import BaseActor
 class cloudbroker_ovsnode(BaseActor):
     def __init__(self):
         super(cloudbroker_ovsnode, self).__init__()
-        self.scl = j.clients.osis.getNamespace("system")
         self.node = j.apps.cloudbroker.node
 
     def activateNodes(self, nids, **kwargs):
@@ -16,7 +15,7 @@ class cloudbroker_ovsnode(BaseActor):
             self.node.scheduleJumpscripts(
                 nid, node["gid"], category="monitor.healthcheck"
             )
-        return self.scl.node.updateSearch(
+        return self.sysmodels.node.updateSearch(
             {"id": {"$in": nids}}, {"$set": {"status": "ENABLED"}}
         )
 
@@ -62,7 +61,7 @@ class cloudbroker_ovsnode(BaseActor):
         )
         if not edgeclients:
             raise exceptions.BadRequest("No storage routers available to migrate to")
-        self.scl.node.updateSearch({"id": nid}, {"$set": {"status": "MAINTENANCE"}})
+        self.sysmodels.node.updateSearch({"id": nid}, {"$set": {"status": "MAINTENANCE"}})
 
         def get_vpool_name(host, port):
             for edgeclient in alledgeclients:
@@ -104,7 +103,7 @@ class cloudbroker_ovsnode(BaseActor):
         self.cb.executeJumpscript("cloudscalers", "nodestatus", nid=nid, gid=gid)
         self.node.unscheduleJumpscripts(nid, gid, category="monitor.healthcheck")
         time.sleep(5)
-        self.scl.health.deleteSearch({"nid": nid})
+        self.sysmodels.health.deleteSearch({"nid": nid})
 
         ctx.events.sendMessage(
             "Deactivate Storagerouter", "Finished moving all vdisks", "success"

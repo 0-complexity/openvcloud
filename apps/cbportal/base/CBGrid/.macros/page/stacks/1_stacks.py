@@ -1,5 +1,5 @@
 def main(j, args, params, tags, tasklet):
-    from cloudbrokerlib.cloudbroker import CloudBroker
+    from cloudbrokerlib.cloudbroker import CloudBroker, db
 
     page = args.page
     modifier = j.html.getPageModifierGridDataTables(page)
@@ -11,12 +11,8 @@ def main(j, args, params, tags, tasklet):
     query = {"$fields": ["id", "memory"]}
     nodesbyid = {
         node["id"]: node["memory"]
-        for node in cb.syscl.node.search(query)[1:]
+        for node in db.system.node.search(query)[1:]
         if "memory" in node
-    }
-    sizes = {
-        s["id"]: s["memory"]
-        for s in cb.cbcl.size.search({"$fields": ["id", "memory"]})[1:]
     }
 
     if imageid:

@@ -20,8 +20,6 @@ class cloudapi_disks(BaseActor):
 
     def __init__(self):
         super(cloudapi_disks, self).__init__()
-        self.osisclient = j.core.portal.active.osis
-        self.osis_logs = j.clients.osis.getCategory(self.osisclient, "system", "log")
         self._minimum_days_of_credit_required = float(
             self.hrd.get(
                 "instance.openvcloud.cloudbroker.creditcheck.daysofcreditrequired"

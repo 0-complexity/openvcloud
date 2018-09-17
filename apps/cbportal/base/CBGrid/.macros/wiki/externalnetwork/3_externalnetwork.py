@@ -1,4 +1,5 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
 
     params.result = (args.doc, args.doc)
     networkid = args.requestContext.params.get("networkid")
@@ -10,12 +11,11 @@ def main(j, args, params, tags, tasklet):
         args.doc.applyTemplate({})
         return params
 
-    cbclient = j.clients.osis.getNamespace("cloudbroker")
-    if not cbclient.externalnetwork.exists(networkid):
+    if not db.cloudbroker.externalnetwork.exists(networkid):
         args.doc.applyTemplate({}, True)
         return params
 
-    pool = cbclient.externalnetwork.get(networkid)
+    pool = db.cloudbroker.externalnetwork.get(networkid)
     networkinfo = j.apps.cloudbroker.iaas.getUsedIPInfo(pool)
     network = pool.dump()
     network["pingips"] = ",".join(network["pingips"])

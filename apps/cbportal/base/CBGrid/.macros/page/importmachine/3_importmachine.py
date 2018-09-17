@@ -2,26 +2,23 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = page = args.page
     cloudspaceId = int(args.getTag("cloudspaceId"))
-    scl = j.clients.osis.getNamespace("cloudbroker")
 
-    cloudspace = scl.cloudspace.get(cloudspaceId)
-    stacks = scl.stack.search({"gid": cloudspace.gid, "status": "ENABLED"})[1:]
-    sizes = scl.size.search({})[1:]
+    cloudspace = db.cloudbroker.cloudspace.get(cloudspaceId)
+    stacks = db.cloudbroker.stack.search({"gid": cloudspace.gid, "status": "ENABLED"})[
+        1:
+    ]
 
-    dropdisksizes = list()
     dropstacks = list()
-    disksizes = set()
 
     def sizeSorter(size):
         return size["memory"]
 
     def sortName(item):
         return item["name"]
-
-    for size in sorted(disksizes):
-        dropdisksizes.append(("%s GB" % size, str(size)))
 
     for stack in sorted(stacks, key=sortName):
         dropstacks.append((stack["name"], stack["id"]))

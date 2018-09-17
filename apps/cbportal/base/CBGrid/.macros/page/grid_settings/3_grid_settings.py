@@ -3,12 +3,13 @@ import yaml
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = page = args.page
 
     gid = int(args.getTag("gid"))
-    scl = j.clients.osis.getNamespace("system")
     settings = ""
-    grid_settings = scl.grid.searchOne({"id": gid}).get("settings", {})
+    grid_settings = db.system.grid.searchOne({"id": gid}).get("settings", {})
     if grid_settings:
         settings = yaml.safe_dump(grid_settings, default_flow_style=False)
 

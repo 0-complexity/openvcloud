@@ -11,11 +11,6 @@ class cloudbroker_user(BaseActor):
     """
     Operator actions for interventions specific to a user
     """
-
-    def __init__(self):
-        super(cloudbroker_user, self).__init__()
-        self.syscl = j.clients.osis.getNamespace("system")
-
     @auth(groups=["level1", "level2", "level3"])
     def create(self, username, emailaddress, password, groups, **kwargs):
         groups = groups or []
@@ -66,7 +61,7 @@ class cloudbroker_user(BaseActor):
         if not user:
             raise exceptions.NotFound("User with name %s does not exists" % username)
         else:
-            userobj = self.syscl.user.get(user["id"])
+            userobj = self.sysmodels.user.get(user["id"])
 
         query = {"acl.userGroupId": username, "acl.type": "U"}
         # Delete user from all accounts, if account status is Destoryed then delete without
@@ -113,9 +108,9 @@ class cloudbroker_user(BaseActor):
         userobj.id = "DELETED_%i_%s" % (time.time(), uid)
         userobj.guid = "%s_DELETED_%i_%s" % (gid, time.time(), uid)
         userobj.protected = False
-        self.syscl.user.delete(uid)
-        self.syscl.user.set(userobj)
-        self.syscl.sessioncache.deleteSearch({"user": uid})
+        self.sysmodels.user.delete(uid)
+        self.sysmodels.user.set(userobj)
+        self.sysmodels.sessioncache.deleteSearch({"user": uid})
 
         return True
 
@@ -130,7 +125,7 @@ class cloudbroker_user(BaseActor):
         :return: True if deletion was successful
         """
         if userguid.count("_"):
-            users = self.syscl.user.search({"guid": userguid})[1:]
+            users = self.sysmodels.user.search({"guid": userguid})[1:]
             username = users[0]["id"]
         else:
             username = userguid

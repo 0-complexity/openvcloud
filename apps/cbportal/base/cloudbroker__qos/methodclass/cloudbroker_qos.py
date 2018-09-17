@@ -8,7 +8,6 @@ import itertools
 class cloudbroker_qos(BaseActor):
     def __init__(self):
         super(cloudbroker_qos, self).__init__()
-        self.ccl = j.clients.osis.getNamespace("cloudbroker")
         self.vcl = j.clients.osis.getNamespace("vfw")
 
     def limitCPU(self, machineId, **kwargs):
@@ -98,11 +97,11 @@ class cloudbroker_qos(BaseActor):
             query["nics.macAddress"] = machineMAC
         else:
             query["cloudspaceId"] = cloudspaceId
-        machines = self.ccl.vmachine.search(query)[1:]
+        machines = self.models.vmachine.search(query)[1:]
         stackids = list(set(vm["stackId"] for vm in machines))
         stacks = {
             stack["id"]: stack
-            for stack in self.ccl.stack.search({"id": {"$in": stackids}})[1:]
+            for stack in self.models.stack.search({"id": {"$in": stackids}})[1:]
         }
 
         for stackId, machines in itertools.groupby(machines, lambda vm: vm["stackId"]):
@@ -128,7 +127,7 @@ class cloudbroker_qos(BaseActor):
         param:burst maximum speed in kilobytes per second, 0 means unlimited
         result bool
         """
-        cloudspace = self.ccl.cloudspace.get(cloudspaceId)
+        cloudspace = self.models.cloudspace.get(cloudspaceId)
         vfwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
         if not self.vcl.virtualfirewall.exists(vfwid):
             raise exceptions.NotFound(

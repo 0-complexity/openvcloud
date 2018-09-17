@@ -42,9 +42,7 @@ class cloudapi_machines(BaseActor):
 
     def __init__(self):
         super(cloudapi_machines, self).__init__()
-        self.osisclient = j.core.portal.active.osis
         self.network = network.Network(self.models)
-        self.systemodel = j.clients.osis.getNamespace("system")
         self.netmgr = self.cb.netmgr
         self.acl = self.cb.agentcontroller
 
@@ -1582,7 +1580,7 @@ class cloudapi_machines(BaseActor):
             raise exceptions.NotFound("Machine %s not found" % machineId)
         tags = "machineId:{}".format(machineId)
         results = []
-        for audit in self.systemodel.audit.search({"tags": {"$regex": tags}})[1:]:
+        for audit in self.sysmodels.audit.search({"tags": {"$regex": tags}})[1:]:
             parts = audit["call"].split("/")
             call = "/".join(parts[-2:])
             if parts[-1] in [
@@ -1785,7 +1783,7 @@ class cloudapi_machines(BaseActor):
         :return True if user access was updated successfully
         """
         # Check if user exists in the system or is an unregistered invited user
-        existinguser = self.systemodel.user.search({"id": userId})[1:]
+        existinguser = self.sysmodels.user.search({"id": userId})[1:]
         if existinguser:
             userstatus = "CONFIRMED"
         else:

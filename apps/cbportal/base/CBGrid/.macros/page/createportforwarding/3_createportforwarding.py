@@ -2,10 +2,10 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
     params.result = page = args.page
     cloudspaceId = int(args.getTag("cloudspaceId"))
-    ccl = j.clients.osis.getNamespace("cloudbroker")
-    vmachines = ccl.vmachine.search(
+    vmachines = db.cloudbroker.vmachine.search(
         {
             "cloudspaceId": cloudspaceId,
             "status": {"$nin": ["ERROR", "DESTROYED", "DELETED"]},

@@ -4,7 +4,7 @@ from JumpScale.portal.docgenerator.popup import Popup
 def main(j, args, params, tags, tasklet):
     import gevent
 
-    actors = j.apps.cloudbroker.iaas.cb.actors.cloudapi
+    actors = j.apps.cloudapi
     params.result = page = args.page
     cloudspaceId = args.getTag("cloudspaceId")
     timeout = gevent.Timeout(2)

@@ -2,14 +2,11 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
 
     params.result = page = args.page
     diskid = args.getTag("diskid")
-
-    osiscl = j.clients.osis.getByInstance("main")
-    cbosis = j.clients.osis.getNamespace("cloudbroker", osiscl)
-
-    disk = cbosis.disk.get(int(diskid))
+    disk = db.cloudbroker.disk.get(int(diskid))
     iotune = disk.iotune
 
     popup = Popup(

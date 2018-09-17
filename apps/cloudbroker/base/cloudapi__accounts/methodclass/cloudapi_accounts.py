@@ -9,11 +9,6 @@ class cloudapi_accounts(BaseActor):
     API Actor api for managing account
 
     """
-
-    def __init__(self):
-        super(cloudapi_accounts, self).__init__()
-        self.systemodel = j.clients.osis.getNamespace("system")
-
     @authenticator.auth(acl={"account": set("U")})
     def addUser(self, accountId, userId, accesstype, explicit=True, **kwargs):
         """

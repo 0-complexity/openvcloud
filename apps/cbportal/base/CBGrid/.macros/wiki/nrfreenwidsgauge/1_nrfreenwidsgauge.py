@@ -1,11 +1,12 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
     doc = args.doc
     id = args.getTag("id")
     gid = int(args.getTag("gid"))
     width = args.getTag("width")
     height = args.getTag("height")
     result = "{{jgauge width:%(width)s id:%(id)s height:%(height)s val:%(running)s start:0 end:%(total)s}}"
-    ac = j.clients.osis.getCategory(j.core.portal.active.osis, "libvirt", "networkids")
+    ac = db.libvirt.networkids
     if ac.exists(gid):
         networkids = ac.get(gid).networkids
     else:

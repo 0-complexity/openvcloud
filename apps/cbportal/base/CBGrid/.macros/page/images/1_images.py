@@ -1,19 +1,21 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
 
     page = args.page
     modifier = j.html.getPageModifierGridDataTables(page)
-    ccl = j.clients.osis.getNamespace("cloudbroker")
 
     stackid = args.getTag("stackid")
     filters = {"status": {"$nin": ["DESTROYED", "DELETED"]}}
     if stackid:
         stackid = int(stackid)
-        stack = ccl.stack.get(stackid)
-        images = ccl.image.search({"id": {"$in": stack.images}})[1:]
+        stack = db.cloudbroker.stack.get(stackid)
+        images = db.cloudbroker.image.search({"id": {"$in": stack.images}})[1:]
         imageids = [image["id"] for image in images]
         filters["id"] = {"$in": imageids}
 
-    locations = ccl.location.search({"$query": {}, "$fields": ["gid", "name"]})[1:]
+    locations = db.cloudbroker.location.search(
+        {"$query": {}, "$fields": ["gid", "name"]}
+    )[1:]
     locationmap = {loc["gid"]: loc["name"] for loc in locations}
 
     def getLocation(field, row):

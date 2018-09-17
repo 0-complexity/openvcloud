@@ -1,4 +1,6 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = (args.doc, args.doc)
     imageid = args.requestContext.params.get("id")
     if not imageid:
@@ -10,17 +12,14 @@ def main(j, args, params, tags, tasklet):
         args.doc.applyTemplate({})
         return params
 
-    ccl = j.clients.osis.getNamespace("cloudbroker")
-
-    if not ccl.image.exists(imageid):
+    if not db.cloudbroker.image.exists(imageid):
         args.doc.applyTemplate({"imageid": None}, True)
         return params
 
-    imageobj = ccl.image.get(imageid)
-    image = imageobj.dump()
-    if imageobj.accountId:
-        query = {"$fields": ["id", "name"], "$query": {"id": imageobj.accountId}}
-        image["account"] = ccl.account.searchOne(query)
+    image = db.cloudbroker.image.getraw(imageid)
+    if image["accountId"]:
+        query = {"$fields": ["id", "name"], "$query": {"id": image["accountId"]}}
+        image["account"] = db.cloudbroker.account.searchOne(query)
 
     args.doc.applyTemplate(image, True)
 

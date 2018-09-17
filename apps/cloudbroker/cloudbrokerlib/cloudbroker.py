@@ -23,9 +23,21 @@ import netaddr
 
 DEFAULTIOPS = 2000
 
+
+class OSIS(object):
+    def __init__(self):
+        self._osis = j.clients.osis.getByInstance('main')
+
+    def __getattr__(self, attr):
+        namespace = j.clients.osis.getNamespace(attr, self._osis)
+        setattr(self, attr, namespace)
+        return namespace
+
+
 ujson = j.db.serializers.ujson
-models = j.clients.osis.getNamespace("cloudbroker")
-sysmodels = j.clients.osis.getNamespace("system")
+db = OSIS()
+models = db.cloudbroker
+sysmodels = db.system
 _providers = dict()
 
 

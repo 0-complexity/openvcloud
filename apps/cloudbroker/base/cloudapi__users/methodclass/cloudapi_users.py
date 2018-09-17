@@ -13,12 +13,6 @@ class cloudapi_users(BaseActor):
     User management
 
     """
-
-    def __init__(self):
-        super(cloudapi_users, self).__init__()
-        self.libvirt_actor = j.apps.libcloud.libvirt
-        self.systemodel = j.clients.osis.getNamespace("system")
-
     def authenticate(self, username, password, **kwargs):
         """
         The function evaluates the provided username and password and returns a session key.
@@ -82,7 +76,7 @@ class cloudapi_users(BaseActor):
                 userdata = {}
             userdata.update(data)
             user.data = json.dumps(userdata)
-            self.systemodel.user.set(user)
+            self.sysmodels.user.set(user)
             return True
         else:
             ctx.start_response("404 Not Found", [])
@@ -101,7 +95,7 @@ class cloudapi_users(BaseActor):
                 "Cannot return more than 20 usernames while matching users"
             )
 
-        matchingusers = self.systemodel.user.search(
+        matchingusers = self.sysmodels.user.search(
             {"id": {"$regex": usernameregex}}, size=limit
         )[1:]
 

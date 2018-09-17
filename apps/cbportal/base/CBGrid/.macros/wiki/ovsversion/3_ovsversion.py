@@ -1,8 +1,9 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     acl = j.clients.agentcontroller.get()
-    ccl = j.clients.osis.getNamespace("cloudbroker")
     wiki = []
-    for location in ccl.location.search({})[1:]:
+    for location in db.cloudbroker.location.search({})[1:]:
         wiki.append("h5. OpenvStorage {}".format(location["name"]))
         jobinfo = acl.executeJumpscript(
             "cloudscalers",

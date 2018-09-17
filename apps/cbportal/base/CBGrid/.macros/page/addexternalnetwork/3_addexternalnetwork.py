@@ -2,9 +2,9 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
     params.result = page = args.page
-    ccl = j.clients.osis.getNamespace("cloudbroker")
-    locations = ccl.location.search({})[1:]
+    locations = db.cloudbroker.location.search({})[1:]
 
     popup = Popup(
         id="addexternalnetwork",

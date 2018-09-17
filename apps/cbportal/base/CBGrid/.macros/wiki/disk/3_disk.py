@@ -2,20 +2,21 @@ from CloudscalerLibcloud.compute.drivers.libvirt_driver import PhysicalVolume
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = (args.doc, args.doc)
     diskid = args.requestContext.params.get("id")
 
-    osiscl = j.clients.osis.getByInstance("main")
-    cbosis = j.clients.osis.getNamespace("cloudbroker", osiscl)
-
     try:
-        disk = cbosis.disk.get(int(diskid))
+        disk = db.cloudbroker.disk.get(int(diskid))
     except:
         args.doc.applyTemplate({})
         return params
     disk_data = disk.dump()
-    machine = next(iter(cbosis.vmachine.search({"disks": disk_data["id"]})[1:]), None)
-    account = cbosis.account.searchOne({"id": disk_data["accountId"]})
+    machine = next(
+        iter(db.cloudbroker.vmachine.search({"disks": disk_data["id"]})[1:]), None
+    )
+    account = db.cloudbroker.account.searchOne({"id": disk_data["accountId"]})
     disk_data["accountName"] = account["name"] if account else ""
     if machine:
         disk_data["machineId"] = machine["id"]

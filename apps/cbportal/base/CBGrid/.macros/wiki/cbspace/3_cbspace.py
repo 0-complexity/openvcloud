@@ -39,6 +39,7 @@ def generateUsersList(sclient, objdict, accessUserType, users):
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
 
     params.result = (args.doc, args.doc)
     id = args.requestContext.params.get("id")
@@ -50,22 +51,18 @@ def main(j, args, params, tags, tasklet):
         args.doc.applyTemplate({})
         return params
 
-    cbclient = j.clients.osis.getNamespace("cloudbroker")
-    sclient = j.clients.osis.getNamespace("system")
-    vcl = j.clients.osis.getNamespace("vfw")
-
-    if not cbclient.cloudspace.exists(id):
+    if not db.cloudbroker.cloudspace.exists(id):
         args.doc.applyTemplate({"id": None}, False)
         return params
 
-    cloudspaceobj = cbclient.cloudspace.get(id)
+    cloudspaceobj = db.cloudbroker.cloudspace.get(id)
 
     cloudspacedict = cloudspaceobj.dump()
 
     accountid = cloudspacedict["accountId"]
     account = (
-        cbclient.account.get(accountid).dump()
-        if cbclient.account.exists(accountid)
+        db.cloudbroker.account.get(accountid).dump()
+        if db.cloudbroker.account.exists(accountid)
         else {"name": "N/A"}
     )
     cloudspacedict["accountname"] = account["name"]
@@ -76,8 +73,8 @@ def main(j, args, params, tags, tasklet):
     cloudspacedict["reslimits"] = cloudspaceobj.resourceLimits
 
     vfwkey = "%(gid)s_%(networkId)s" % (cloudspacedict)
-    if vcl.virtualfirewall.exists(vfwkey):
-        network = vcl.virtualfirewall.get(vfwkey).dump()
+    if db.vfw.virtualfirewall.exists(vfwkey):
+        network = db.vfw.virtualfirewall.get(vfwkey).dump()
         cloudspacedict["network"] = network
     else:
         if cloudspacedict["networkId"]:
@@ -86,8 +83,8 @@ def main(j, args, params, tags, tasklet):
             cloudspacedict["networkid"] = "N/A"
         cloudspacedict["network"] = {"tcpForwardRules": []}
     users = list()
-    users = generateUsersList(sclient, account, "acc", users)
-    cloudspacedict["users"] = generateUsersList(sclient, cloudspacedict, "cl", users)
+    users = generateUsersList(db.system, account, "acc", users)
+    cloudspacedict["users"] = generateUsersList(db.system, cloudspacedict, "cl", users)
     args.doc.applyTemplate(cloudspacedict, False)
     return params
 

@@ -19,11 +19,6 @@ class cloudbroker_iaas(BaseActor):
     """
     gateway to grid
     """
-
-    def __init__(self):
-        super(cloudbroker_iaas, self).__init__()
-        self.lcl = j.clients.osis.getNamespace("libvirt")
-
     def _checkPingIps(self, pingips):
         pingips = pingips.split(",")
         res = []

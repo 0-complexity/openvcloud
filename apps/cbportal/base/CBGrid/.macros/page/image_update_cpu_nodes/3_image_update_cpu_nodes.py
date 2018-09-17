@@ -2,13 +2,14 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = page = args.page
     imageId = args.getTag("imageId")
     try:
         imageId = int(imageId)
     except ValueError:
         return params
-    ccl = j.clients.osis.getNamespace("cloudbroker")
     image = {"id": imageId}
 
     popup = Popup(
@@ -18,7 +19,7 @@ def main(j, args, params, tags, tasklet):
     )
 
     options = list()
-    for stack in ccl.stack.search({})[1:]:
+    for stack in db.cloudbroker.stack.search({})[1:]:
         available = image["id"] in stack.get("images", [])
         options.append((stack["name"], stack["id"], available))
 

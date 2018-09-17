@@ -1,15 +1,14 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
 
     page = args.page
     modifier = j.html.getPageModifierGridDataTables(page)
-    ccl = j.clients.osis.getNamespace("cloudbroker")
-
     disktype = args.getTag("type")
     filters = dict(status="CREATED")
     if disktype:
         filters["type"] = disktype
 
-    locations = ccl.location.search({"$query": {}, "$fields": ["gid", "name"]})[1:]
+    locations = db.cloudbroker.location.search({"$query": {}, "$fields": ["gid", "name"]})[1:]
     locationmap = {loc["gid"]: loc["name"] for loc in locations}
 
     def getLocation(field, row):

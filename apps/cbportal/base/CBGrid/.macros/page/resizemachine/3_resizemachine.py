@@ -2,17 +2,18 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = page = args.page
     machineId = int(args.getTag("machineId"))
-    ccl = j.clients.osis.getNamespace("cloudbroker")
-    actors = j.apps.cloudbroker.iaas.cb.actors.cloudapi
 
-    vmachine = ccl.vmachine.get(machineId)
-    image = ccl.image.get(vmachine.imageId)
-    bootdisks = ccl.disk.search({"id": {"$in": vmachine.disks}, "type": "B"})[1:]
+    vmachine = db.cloudbroker.vmachine.get(machineId)
+    image = db.cloudbroker.image.get(vmachine.imageId)
+    bootdisks = db.cloudbroker.disk.search(
+        {"id": {"$in": vmachine.disks}, "type": "B"}
+    )[1:]
     if len(bootdisks) != 1:
         return params
-    bootdisk = bootdisks[0]
     popup = Popup(
         id="resizemachine",
         header="Resize Machine",

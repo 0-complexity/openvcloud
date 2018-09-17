@@ -6,15 +6,11 @@ from cloudbrokerlib.baseactor import BaseActor
 
 
 class cloudbroker_node(BaseActor):
-    def __init__(self):
-        super(cloudbroker_node, self).__init__()
-        self.scl = j.clients.osis.getNamespace("system")
-
     def _getNode(self, id):
         id = int(id) if isinstance(id, str) else id
         if not isinstance(id, int):
             raise exceptions.BadRequest("Node id should be either string or integer")
-        node = self.scl.node.searchOne({"id": id})
+        node = self.sysmodels.node.searchOne({"id": id})
         if not node:
             raise exceptions.NotFound("Node with id %s not found" % id)
         return node

@@ -1,4 +1,5 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
 
     params.result = (args.doc, args.doc)
     gid = args.requestContext.params.get("gid")
@@ -11,9 +12,8 @@ def main(j, args, params, tags, tasklet):
         return params
 
     gid = int(gid)
-    cbclient = j.clients.osis.getNamespace("cloudbroker")
 
-    locations = cbclient.location.search({"gid": gid})[1:]
+    locations = db.cloudbroker.location.search({"gid": gid})[1:]
     if not locations:
         args.doc.applyTemplate({"gid": None}, True)
         return params

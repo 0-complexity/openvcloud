@@ -2,14 +2,15 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = page = args.page
     machineId = int(args.getTag("machineId"))
-    scl = j.clients.osis.getNamespace("cloudbroker")
 
-    vmachine = scl.vmachine.get(machineId)
-    cloudspace = scl.cloudspace.get(vmachine.cloudspaceId)
+    vmachine = db.cloudbroker.vmachine.get(machineId)
+    cloudspace = db.cloudbroker.cloudspace.get(vmachine.cloudspaceId)
     accountId = cloudspace.accountId
-    rescuedisks = scl.disk.search(
+    rescuedisks = db.cloudbroker.disk.search(
         {
             "gid": cloudspace.gid,
             "type": "C",

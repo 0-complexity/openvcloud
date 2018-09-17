@@ -1,16 +1,17 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     doc = args.doc
     id = args.getTag("id")
     gid = args.getTag("gid")
     width = args.getTag("width")
     height = args.getTag("height")
     result = "{{jgauge width:%(width)s id:%(id)s height:%(height)s val:%(running)s start:0 end:%(total)s}}"
-    ac = j.clients.osis.getCategory(j.core.portal.active.osis, "system", "user")
-    total = ac.count()
+    total = db.system.user.count()
     query = {"active": True}
     if gid:
         query["gid"] = int(gid)
-    active = ac.count(query)
+    active = db.system.user.count(query)
     result = result % {
         "height": height,
         "width": width,

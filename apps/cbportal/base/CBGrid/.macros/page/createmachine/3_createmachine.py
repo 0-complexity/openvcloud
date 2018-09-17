@@ -2,13 +2,13 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
     params.result = page = args.page
     cloudspaceId = int(args.getTag("cloudspaceId"))
-    scl = j.clients.osis.getNamespace("cloudbroker")
     actors = j.apps.cloudbroker.iaas.cb.actors.cloudapi
 
-    cloudspace = scl.cloudspace.get(cloudspaceId)
-    stacks = scl.stack.search({"gid": cloudspace.gid, "status": "ENABLED"})[1:]
+    cloudspace = db.cloudbroker.cloudspace.get(cloudspaceId)
+    stacks = db.cloudbroker.stack.search({"gid": cloudspace.gid, "status": "ENABLED"})[1:]
 
     images = actors.images.list(
         accountId=cloudspace.accountId, cloudspaceId=cloudspace.id

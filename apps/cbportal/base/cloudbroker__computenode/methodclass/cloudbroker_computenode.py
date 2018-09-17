@@ -13,7 +13,6 @@ class cloudbroker_computenode(BaseActor):
 
     def __init__(self):
         super(cloudbroker_computenode, self).__init__()
-        self.scl = j.clients.osis.getNamespace("system")
         self._vcl = j.clients.osis.getCategory(
             j.core.portal.active.osis, "vfw", "virtualfirewall"
         )
@@ -65,13 +64,13 @@ class cloudbroker_computenode(BaseActor):
             stack["eco"] = None
         self.models.stack.set(stack)
         if status in ["ENABLED", "MAINTENANCE", "DECOMMISSIONED", "ERROR"]:
-            nodes = self.scl.node.search(
+            nodes = self.sysmodels.node.search(
                 {"id": int(stack["referenceId"]), "gid": stack["gid"]}
             )[1:]
             if len(nodes) > 0:
                 node = nodes[0]
                 node["status"] = status
-                self.scl.node.set(node)
+                self.sysmodels.node.set(node)
         return stack["status"]
 
     def _errorcb(self, stack, eco):
@@ -205,7 +204,7 @@ class cloudbroker_computenode(BaseActor):
         self.cb.executeJumpscript("cloudscalers", "nodestatus", nid=node_id, gid=gid)
         self.node.unscheduleJumpscripts(node_id, gid, category="monitor.healthcheck")
         time.sleep(5)
-        self.scl.health.deleteSearch({"nid": node_id})
+        self.sysmodels.health.deleteSearch({"nid": node_id})
         return True
 
     def unscheduleJumpscripts(self, stack_id, gid, name=None, category=None):
@@ -258,7 +257,7 @@ class cloudbroker_computenode(BaseActor):
         self, stack, title, ctx, stackmachines, exclude_vfwid=None
     ):
         machines_actor = j.apps.cloudbroker.machine
-        othernodes = self.scl.node.search(
+        othernodes = self.sysmodels.node.search(
             {"gid": stack["gid"], "status": "ENABLED", "roles": "fw"}
         )[1:]
         if not othernodes:

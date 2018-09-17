@@ -5,10 +5,11 @@ from pkg_resources import parse_version
 
 
 def main(j, args, params, tags, tasklet):
-    scl = j.clients.osis.getNamespace("system")
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = page = args.page
     url = (
-        scl.grid.searchOne({"id": j.application.whoAmI.gid})
+        db.system.grid.searchOne({"id": j.application.whoAmI.gid})
         .get("settings", {})
         .get("manifestUrl")
     )
@@ -21,7 +22,7 @@ def main(j, args, params, tags, tasklet):
 
     current_version = None
     for status in ["CURRENT", "INSTALLING", "ERROR"]:
-        current_version = scl.version.searchOne({"status": status})
+        current_version = db.system.version.searchOne({"status": status})
         if current_version:
             break
         

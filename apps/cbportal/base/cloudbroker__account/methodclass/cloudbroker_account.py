@@ -27,10 +27,6 @@ def _send_signup_mail(hrd, **kwargs):
 
 
 class cloudbroker_account(BaseActor):
-    def __init__(self):
-        super(cloudbroker_account, self).__init__()
-        self.syscl = j.clients.osis.getNamespace("system")
-
     def _checkAccount(self, accountId):
         account = self.models.account.searchOne({"id": accountId})
         if not account:
@@ -98,7 +94,7 @@ class cloudbroker_account(BaseActor):
             if j.core.portal.active.auth.userExists(username):
                 if (
                     emailaddress
-                    and not self.syscl.user.search(
+                    and not self.sysmodels.user.search(
                         {"id": username, "emails": emailaddress}
                     )[1:]
                 ):

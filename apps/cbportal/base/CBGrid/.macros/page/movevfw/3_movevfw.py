@@ -2,11 +2,11 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = page = args.page
-    ccl = j.clients.osis.getNamespace("cloudbroker")
-    vcl = j.clients.osis.getNamespace("vfw")
     cloudspaceId = args.getTag("cloudspaceId")
-    cloudspace = ccl.cloudspace.get(int(cloudspaceId))
+    cloudspace = db.cloudbroker.cloudspace.get(int(cloudspaceId))
 
     if cloudspace.status != "DEPLOYED":
         popup = Popup(id="movevfw", header="CloudSpace is not deployed", submit_url="#")
@@ -21,20 +21,20 @@ def main(j, args, params, tags, tasklet):
     )
 
     key = "%(gid)s_%(networkId)s" % cloudspace.dump()
-    if not vcl.virtualfirewall.exists(key):
+    if not db.vfw.virtualfirewall.exists(key):
         popup = Popup(
             id="movevfw", header="CloudSpace is not properly deployed", submit_url="#"
         )
         popup.write_html(page)
         return params
 
-    vfw = vcl.virtualfirewall.get(key)
+    vfw = db.vfw.virtualfirewall.get(key)
     query = {
         "status": "ENABLED",
         "gid": cloudspace.gid,
         "referenceId": {"$ne": str(vfw.nid)},
     }
-    vfwnodes = ccl.stack.search(query)[1:]
+    vfwnodes = db.cloudbroker.stack.search(query)[1:]
     if not vfwnodes:
         popup = Popup(
             id="movevfw", header="No other Firewall node available", submit_url="#"

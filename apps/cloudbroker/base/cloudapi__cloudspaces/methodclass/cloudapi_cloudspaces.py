@@ -30,7 +30,6 @@ class cloudapi_cloudspaces(BaseActor):
                 "instance.openvcloud.cloudbroker.creditcheck.daysofcreditrequired"
             )
         )
-        self.systemodel = j.clients.osis.getNamespace("system")
 
     @authenticator.auth(acl={"cloudspace": set("U")})
     def addUser(self, cloudspaceId, userId, accesstype, explicit=True, **kwargs):
@@ -167,7 +166,7 @@ class cloudapi_cloudspaces(BaseActor):
         :return True if user access was updated successfully
         """
         # Check if user exists in the system or is an unregistered invited user
-        existinguser = self.systemodel.user.search({"id": userId})[1:]
+        existinguser = self.sysmodels.user.search({"id": userId})[1:]
         if existinguser:
             userstatus = "CONFIRMED"
         else:

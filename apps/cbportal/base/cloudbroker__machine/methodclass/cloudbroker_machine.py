@@ -12,7 +12,6 @@ import time
 class cloudbroker_machine(BaseActor):
     def __init__(self):
         super(cloudbroker_machine, self).__init__()
-        self.libvirtcl = j.clients.osis.getNamespace("libvirt")
         self.vfwcl = j.clients.osis.getNamespace("vfw")
 
     def _checkMachine(self, machineId):

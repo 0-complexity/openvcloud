@@ -12,7 +12,6 @@ import time
 class cloudbroker_cloudspace(BaseActor):
     def __init__(self):
         super(cloudbroker_cloudspace, self).__init__()
-        self.syscl = j.clients.osis.getNamespace("system")
         self.network = network.Network(self.models)
         self.vfwcl = j.clients.osis.getNamespace("vfw")
 
@@ -269,8 +268,8 @@ class cloudbroker_cloudspace(BaseActor):
         network = self.vfwcl.virtualfirewall.get(fwid)
         network_obj = network.dump()
 
-        if self.syscl.node.exists(network.nid):
-            network_obj["nodename"] = self.syscl.node.get(network.nid).name
+        if self.sysmodels.node.exists(network.nid):
+            network_obj["nodename"] = self.sysmodels.node.get(network.nid).name
         else:
             network_obj["nodename"] = str(network.nid)
 
@@ -488,7 +487,7 @@ class cloudbroker_cloudspace(BaseActor):
         if not access:
             access = kwargs["ctx"].env["beaker.session"]["user"]
 
-        user = self.syscl.user.search({"id": access})[1:]
+        user = self.sysmodels.user.search({"id": access})[1:]
         if not user:
             raise exceptions.NotFound('Username "%s" not found' % access)
 

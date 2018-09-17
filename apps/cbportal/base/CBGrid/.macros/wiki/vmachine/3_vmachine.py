@@ -43,6 +43,7 @@ def generateUsersList(sclient, objdict, accessUserType, users):
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
     import gevent
 
     params.result = (args.doc, args.doc)
@@ -55,9 +56,6 @@ def main(j, args, params, tags, tasklet):
         args.doc.applyTemplate({})
         return params
 
-    osiscl = j.clients.osis.getByInstance("main")
-    cbosis = j.clients.osis.getNamespace("cloudbroker", osiscl)
-    sosis = j.clients.osis.getNamespace("system")
     data = {
         "stats_image": "N/A",
         "stats_parent_image": "N/A",
@@ -71,7 +69,7 @@ def main(j, args, params, tags, tasklet):
     }
 
     try:
-        obj = cbosis.vmachine.get(id)
+        obj = db.cloudbroker.vmachine.get(id)
     except:
         args.doc.applyTemplate({})
         return params
@@ -87,7 +85,7 @@ def main(j, args, params, tags, tasklet):
     else:
         data["refreshed"] = True
 
-    obj = cbosis.vmachine.get(id)
+    obj = db.cloudbroker.vmachine.get(id)
 
     try:
         cl = j.clients.redis.getByInstance("system")
@@ -101,15 +99,15 @@ def main(j, args, params, tags, tasklet):
 
     data.update(obj.dump())
     try:
-        stack = cbosis.stack.get(obj.stackId).dump()
+        stack = db.cloudbroker.stack.get(obj.stackId).dump()
     except Exception:
         stack = {"name": "N/A", "referenceId": "N/A", "type": "UNKNOWN"}
     try:
-        image = cbosis.image.get(obj.imageId).dump()
+        image = db.cloudbroker.image.get(obj.imageId).dump()
     except Exception:
         image = {"name": "N/A", "referenceId": ""}
     try:
-        space = cbosis.cloudspace.get(obj.cloudspaceId).dump()
+        space = db.cloudbroker.cloudspace.get(obj.cloudspaceId).dump()
         data["accountId"] = space["accountId"]
     except Exception:
         data["accountId"] = 0
@@ -117,7 +115,7 @@ def main(j, args, params, tags, tasklet):
     data["accountName"] = "N/A"
     if data["accountId"]:
         try:
-            account = cbosis.account.get(space["accountId"]).dump()
+            account = db.cloudbroker.account.get(space["accountId"]).dump()
             data["accountName"] = account["name"]
         except:
             pass
@@ -142,7 +140,7 @@ def main(j, args, params, tags, tasklet):
         if [nic for nic in obj.nics if nic.ipAddress == "Undefined"]:
             # reload machine details
             j.apps.cloudapi.machines.get(obj.id)
-            obj = cbosis.vmachine.get(obj.id)
+            obj = db.cloudbroker.vmachine.get(obj.id)
 
         for nic in obj.nics:
             action = ""
@@ -164,7 +162,7 @@ def main(j, args, params, tags, tasklet):
     except Exception as e:
         data["nics"] = "NIC information is not available %s" % e
 
-    data["disks"] = cbosis.disk.search({"id": {"$in": obj.disks}})[1:]
+    data["disks"] = db.cloudbroker.disk.search({"id": {"$in": obj.disks}})[1:]
     diskstats = stats.get("diskinfo", [])
     disktypemap = {"D": "Data", "B": "Boot", "T": "Temp", "M": "Meta"}
     for disk in data["disks"]:
@@ -201,9 +199,9 @@ def main(j, args, params, tags, tasklet):
                 v = "%.2f %siB" % (size, unit)
         data["stats_%s" % k] = v
     users = list()
-    users = generateUsersList(sosis, account, "acc", users)
-    users = generateUsersList(sosis, space, "cl", users)
-    data["users"] = generateUsersList(sosis, data, "vm", users)
+    users = generateUsersList(db.system, account, "acc", users)
+    users = generateUsersList(db.system, space, "cl", users)
+    data["users"] = generateUsersList(db.system, data, "vm", users)
 
     data["referenceId"] = data["referenceId"].replace("-", "%2d")
     args.doc.applyTemplate(data, False)

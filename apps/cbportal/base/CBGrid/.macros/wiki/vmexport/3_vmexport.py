@@ -6,6 +6,7 @@ import pprint
 
 
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
 
     id = args.getTag("id")
     if not id:
@@ -14,13 +15,12 @@ def main(j, args, params, tags, tasklet):
         return params
 
     id = int(id)
-    cbclient = j.clients.osis.getNamespace("cloudbroker")
 
-    if not cbclient.vmexport.exists(id):
+    if not db.cloudbroker.vmexport.exists(id):
         params.result = ("VMExport with id %s not found" % id, args.doc)
         return params
 
-    vmexportobj = cbclient.vmexport.get(id)
+    vmexportobj = db.cloudbroker.vmexport.get(id)
 
     vmexport = vmexportobj.dump()
     vmexport["timestamp"] = (

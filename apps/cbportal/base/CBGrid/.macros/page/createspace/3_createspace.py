@@ -3,12 +3,12 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 def main(j, args, params, tags, tasklet):
     import netaddr
+    from cloudbrokerlib.cloudbroker import db
 
     params.result = page = args.page
     accountId = args.getTag("accountId")
-    ccl = j.clients.osis.getNamespace("cloudbroker")
     locations = list()
-    for location in ccl.location.search({})[1:]:
+    for location in db.cloudbroker.location.search({})[1:]:
         locations.append((location["name"], location["locationCode"]))
     externalnetworks = list()
 
@@ -16,7 +16,9 @@ def main(j, args, params, tags, tasklet):
         return "%04d_%s" % (pool["vlan"], pool["name"])
 
     for pool in sorted(
-        ccl.externalnetwork.search({"accountId": {"$in": [int(accountId), 0]}})[1:],
+        db.cloudbroker.externalnetwork.search(
+            {"accountId": {"$in": [int(accountId), 0]}}
+        )[1:],
         key=network_sort,
     ):
         network = netaddr.IPNetwork("{network}/{subnetmask}".format(**pool))

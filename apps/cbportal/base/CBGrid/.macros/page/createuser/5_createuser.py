@@ -2,10 +2,9 @@ from JumpScale.portal.docgenerator.popup import Popup
 
 
 def main(j, args, params, tags, tasklet):
-    # import ipdb; ipdb.set_trace()
+    from cloudbrokerlib.cloudbroker import db
     params.result = page = args.page
     reload = "noreload" not in args.tags.labels
-    scl = j.clients.osis.getNamespace("system")
 
     popup = Popup(
         id="createuser",
@@ -24,7 +23,7 @@ def main(j, args, params, tags, tasklet):
         type="password",
         placeholder="If left empty, a random password will be generated",
     )
-    for group in scl.group.search({})[1:]:
+    for group in db.system.group.search({})[1:]:
         options.append((group["id"], group["id"], False))
 
     popup.addCheckboxes("Select Groups", "groups", options)

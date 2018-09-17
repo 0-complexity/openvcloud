@@ -1,7 +1,7 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     gid = args.getTag("gid")
-    syscl = j.clients.osis.getNamespace("system")
-    vcl = j.clients.osis.getNamespace("vfw")
 
     def _formatdata(fwdata):
         aaData = list()
@@ -14,13 +14,13 @@ def main(j, args, params, tags, tasklet):
     query = {"roles": "fw"}
     if gid:
         query["gid"] = int(gid)
-    fwnodes = syscl.node.search(query)[1:]
+    fwnodes = db.system.node.search(query)[1:]
 
     fwdata = list()
     for fwnode in fwnodes:
         nid = int(fwnode["id"])
         query = {"nid": nid, "gid": fwnode["gid"]}
-        number = vcl.virtualfirewall.count(query)
+        number = db.vfw.virtualfirewall.count(query)
         fwdata.append((fwnode["name"], nid, number))
     fwnodes = _formatdata(fwdata)
 

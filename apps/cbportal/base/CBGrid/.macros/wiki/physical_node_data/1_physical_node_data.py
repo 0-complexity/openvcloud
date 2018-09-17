@@ -1,10 +1,10 @@
 def main(j, args, params, tags, tasklet):
+    from cloudbrokerlib.cloudbroker import db
+
     params.result = (args.doc, args.doc)
     nid = args.requestContext.params.get("id")
     gid = args.requestContext.params.get("gid")
-    ccl = j.clients.osis.getNamespace("cloudbroker")
-    scl = j.clients.osis.getNamespace("system")
-    node = scl.node.searchOne({"id": int(nid) if nid else None})
+    node = db.system.node.searchOne({"id": int(nid) if nid else None})
     data = {"node": None, "stack": None, "ovs": None, "eco": None}
 
     # check node exists
@@ -33,7 +33,7 @@ def main(j, args, params, tags, tasklet):
 
     # get stack data if stack exists and is cpunode
     if "cpunode" in node["roles"]:
-        stack = ccl.stack.searchOne({"referenceId": nid})
+        stack = db.cloudbroker.stack.searchOne({"referenceId": nid})
         if not stack:
             data["eco"] = "Stack Id not Found"
             args.doc.applyTemplate(data, False)
