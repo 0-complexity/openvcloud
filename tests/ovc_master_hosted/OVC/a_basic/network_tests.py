@@ -317,7 +317,9 @@ class NetworkBasicTests(BasicACLTest):
 
         self.lg("Create external network (EN1) with empty vlan tag, should succeed")
         try:
-            external_network_id = self.create_external_network(name="test-external-network", vlan=None)
+            external_network_id = self.create_external_network(
+                name="test-external-network", vlan=None
+            )
             self.lg("Get external network (EN1)'s info using osis client")
             osis_client = j.clients.osis.getNamespace("cloudbroker")
             external_network_info = osis_client.externalnetwork.get(external_network_id)
@@ -330,3 +332,58 @@ class NetworkBasicTests(BasicACLTest):
         finally:
             self.lg("Remove  external network (EN1), should succeed")
             self.api.cloudbroker.iaas.deleteExternalNetwork(external_network_id)
+
+    def test006_routeros_check(self):
+        """ OVC-069
+        *Test case for RouterOS selfhealing script*
+
+        **Test Scenario:**
+
+        #. Create and deploy a cloudspace.
+        #. Go to the node on which the ROS is created and shuts down its domain, should succeed.
+        #. Run ROS selfhealing script, should succeed.
+        #. Ensure the ROS is running, should succeed.
+        """
+        self.lg("%s STARTED" % self._testID)
+        self.lg("Create and deploy a cloudspace")
+
+        def ros_status(name, nid):
+            ros_list = self.execute_command_on_physical_node(
+                "virsh list --all", nid
+            ).split("\n")
+            ros = [ros for ros in ros_list if ros.find(name) != -1][0]
+            for status in ["running", "shut off"]:
+                if ros.find(status) != -1:
+                    return {"status": status}
+
+        nid = self.get_physical_node_id(self.cloudspace_id)
+        network_id = self.get_cloudspace_network_id(self.cloudspace_id)
+        ros_name = "routeros_%04x" % network_id
+
+        # check if ROS is running
+        self.assertEqual(ros_status(ros_name, nid)["status"], "running")
+
+        self.lg(
+            "Go to the node on which the ROS is created and shuts down its domain, should succeed."
+        )
+        cmd = "virsh shutdown {}".format(ros_name)
+        self.execute_command_on_physical_node(cmd, nid)
+
+        # wait for domain to shut down
+        self.wait_for_status(
+            status="shut off", func=ros_status, timeout=60, name=ros_name, nid=nid
+        )
+
+        self.lg("Run ROS selfhealing script, should succeed.")
+        acl = j.clients.agentcontroller.get()
+        output = acl.executeJumpscript("greenitglobe", "routeros_check", nid=nid)
+        self.assertEqual(output["state"], "OK")
+
+        self.lg("Ensure the ROS is running, should succeed.")
+        # wait for ROS to start running
+        self.wait_for_status(
+            status="running", func=ros_status, timeout=60, name=ros_name, nid=nid
+        )
+
+        self.lg("%s ENDED" % self._testID)
+

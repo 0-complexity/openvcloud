@@ -95,7 +95,7 @@ Depending on the type of node, following sections are available:
 <a id="network"></a>
 ### Network
 - **publicipswatcher.py** checks the status of the available public IPs
-- **routeros_check.py** checks the status of RouterOS. (scheduled by **routeros_check_schedule.py**)
+- **routeros_check.py** checks the status of RouterOS. If RouterOS was shut down unexpectedly it will be restarted. (scheduled by **routeros_check_schedule.py**)
 
 
 <a id="redis"></a>
