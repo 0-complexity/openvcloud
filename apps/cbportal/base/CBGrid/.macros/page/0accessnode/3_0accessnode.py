@@ -60,16 +60,19 @@ Before using the secure shell plugin integration with 0-access, make sure you lo
             ssh_command = "ssh {username}@{ip} -p {port}".format(
                 username=username, ip=ip, port=port
             )
-            page.addCodeBlock(ssh_command, template="bash")
+            page.addCodeBlock(ssh_command, template="bash", edit=False)
             page.addHTML(counter)
         else:
             page.addCodeBlock(
-                "Can not get provisioning data may be jwt has expired", template="bash"
+                "Can not get provisioning data may be jwt has expired",
+                template="bash",
+                edit=False,
             )
     else:
         page.addCodeBlock(
             "No jwt found in your session please logout and login again",
             template="bash",
+            edit=False,
         )
 
     params.result = page
