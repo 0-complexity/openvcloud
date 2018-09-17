@@ -59,7 +59,7 @@
         var:gid int,,id of the grid
         var:name str,,name of disk
         var:description str,,description of disk
-        var:size int,10,size in GBytes, default is 0
+        var:size int,10,size in GBytes, default is 0 @optional
         var:type str,B, (B;D;T)  B=Boot;D=Data;T=Temp
         var:ssdSize int,0,size in GBytes default is 0 @optional
         var:iops int,2000,max IOPS disk can perform defaults to 2000 @optional
@@ -88,4 +88,5 @@
         """
         var:diskIds list(int),, list of disk ids to delete
         var:reason str,, reason for deleting the disks
+        var:permanently bool,False, whether to completly delete the disks, works only with non attached disks @optional
         result:bool, True if disks are deleted

@@ -168,6 +168,7 @@ h2. Account: ${name}
 {% endif %}
 
 {{createspace: accountId:'$$id'}}
+{{createdisk: accountId:'$$id'}}
 
 h3. Details
 |*Account ID*|$$id|
@@ -197,9 +198,37 @@ h3. Cloud Spaces
   action: /restmachine/cloudbroker/cloudspace/destroyCloudSpaces
   reload: false
   input:
+  - name: permanently
+    label: Completely delete the CloudSpaces, can't be restored later.
+    type: dropdown
+    values:
+     - label: "No"
+       value: 0
+     - label: "Yes"
+       value: 1
   - reason
  }}
 {{cbspaces: accountId:'$$id'}}
+
+h3. Unattached Disks
+{{action: id:'create_disk' class:'glyphicon glyphicon-plus margin-bottom-medium margin-left-medium' label:'Add Disk'}}
+
+{{actions: gridbinding:'table_cloudbroker_disk diskIds'
+- display: Delete Disks
+  action: /restmachine/cloudapi/disks/deleteDisks
+  input:
+  - name: permanently
+    label: Completely delete disks, can't be restored later.
+    type: dropdown
+    values:
+     - label: "No"
+       value: 0
+     - label: "Yes"
+       value: 1
+  - reason
+ }}
+
+{{accdisks: accountId:'$$id'}}
 
 h3. Audits
 {{grid.audits accountId:'$$id'}}

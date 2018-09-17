@@ -77,9 +77,7 @@ class cloudapi_disks(BaseActor):
         """
         account = self.models.account.get(accountId)
         if account.status in resourcestatus.Account.INVALID_STATES:
-            raise exceptions.BadRequest(
-                "Can not create a disk on deleted Account"
-            )
+            raise exceptions.BadRequest("Can not create a disk on deleted Account")
         with self.models.account.lock(accountId):
             # Validate that enough resources are available in the account CU limits to add the disk
             j.apps.cloudapi.accounts.checkAvailableMachineResources(
@@ -206,7 +204,7 @@ class cloudapi_disks(BaseActor):
         if iops:
             iotune["total_iops_sec"] = iops
         disk = self.models.disk.get(diskId)
-        if disk.status == resourcestatus.Disk.INVALID_STATES:
+        if disk.status in resourcestatus.Disk.INVALID_STATES:
             raise exceptions.BadRequest("Disk with id %s is not created" % diskId)
 
         if disk.type == "M":
@@ -329,7 +327,7 @@ class cloudapi_disks(BaseActor):
             raise exceptions.BadRequest(
                 "The specified size is smaller than or equal the original size"
             )
-        if disk.status == resourcestatus.Disk.INVALID_STATES:
+        if disk.status in resourcestatus.Disk.INVALID_STATES:
             raise exceptions.BadRequest("Disk with id %s is not created" % diskId)
 
         machine = next(iter(self.models.vmachine.search({"disks": diskId})[1:]), None)
@@ -380,7 +378,7 @@ class cloudapi_disks(BaseActor):
         return True
 
     @authenticator.auth(acl={"cloudspace": set("X")})
-    def deleteDisks(self, diskIds, reason, **kwargs):
+    def deleteDisks(self, diskIds, reason, permanently=False, **kwargs):
         for diskId in diskIds:
-            self.delete(diskId, False, True, reason=reason)
+            self.delete(diskId, False, permanently, reason=reason)
         return True

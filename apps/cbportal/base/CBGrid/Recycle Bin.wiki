@@ -198,7 +198,7 @@ h2. Deleted Virtual Machines
 
 {{vmbin}}
 
-h2. Deleted disks
+h2. Deleted Unattached Disks
 {{datatables_use}}
 
 {{actions:
@@ -209,6 +209,7 @@ h2. Deleted disks
     type: text
     name: reason
   data:
+    permanently: True
     diskIds: ${BdiskIds}
 }}
 
@@ -242,6 +243,7 @@ h2. Deleted CD-ROM
     type: text
     name: reason
   data:
+    permanently: True
     diskIds: ${CdiskIds}
 }}
 

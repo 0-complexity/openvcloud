@@ -372,11 +372,15 @@ class cloudbroker_machine(BaseActor):
 
     @auth(groups=["level1", "level2", "level3"])
     def rollbackSnapshot(self, machineId, reason, name=None, epoch=None, **kwargs):
-        j.apps.cloudapi.machines.rollbackSnapshot(machineId=machineId, name=name, epoch=epoch)
+        j.apps.cloudapi.machines.rollbackSnapshot(
+            machineId=machineId, name=name, epoch=epoch
+        )
 
     @auth(groups=["level1", "level2", "level3"])
     def deleteSnapshot(self, machineId, reason, name=None, epoch=None, **kwargs):
-        j.apps.cloudapi.machines.deleteSnapshot(machineId=machineId, name=name, epoch=epoch)
+        j.apps.cloudapi.machines.deleteSnapshot(
+            machineId=machineId, name=name, epoch=epoch
+        )
 
     @auth(groups=["level1", "level2", "level3"])
     def clone(self, machineId, cloneName, reason, **kwargs):
@@ -644,7 +648,9 @@ class cloudbroker_machine(BaseActor):
     @auth(groups=["level1", "level2", "level3"])
     def deleteDisk(self, machineId, diskId, **kwargs):
         self._validateMachineRequest(machineId)
-        return j.apps.cloudapi.disks.delete(diskId=diskId, detach=True)
+        return j.apps.cloudapi.disks.delete(
+            diskId=diskId, detach=True, permanently=True
+        )
 
     @auth(groups=["level1", "level2", "level3"])
     def createTemplate(self, machineId, templateName, callbackUrl, reason, **kwargs):

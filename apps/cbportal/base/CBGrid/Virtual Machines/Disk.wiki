@@ -2,8 +2,11 @@
 {{disk}}
 
 {% if id %}
+{{diskattach: diskId:'$$id'}}
 h2. Disk: ${name}
 
+{% if status != 'DESTROYED' %}
+{% if status != 'TOBEDELETED' %}
 {% if type not in ['Meta', 'CD-ROM'] %}
 {{actions:
 - display: Limit IO
@@ -18,6 +21,28 @@ h2. Disk: ${name}
   - name: size
     type: number
     label: Disk size (in GiB)
+{% if status == 'CREATED' %}
+- display: Attach to Machine
+  action: '#attach_disk'
+
+- display: Delete
+  action: /restmachine/cloudapi/disks/delete
+  refresh: true
+  input:
+  - label: Reason
+    type: text
+    name: reason
+  - name: permanently
+    label: Completely delete the disk, can't be restored later.
+    type: dropdown
+    values:
+     - label: "No"
+       value: 0
+     - label: "Yes"
+       value: 1
+  data:
+   diskId: ${id}
+{% endif %}
 
 }}
 {% elif type == 'CD-ROM' and status != 'DESTROYED' %}
@@ -39,8 +64,29 @@ h2. Disk: ${name}
        value: 1
   data:
    diskId: ${id}
+{% endif %}
 
+{% else %}
+{{actions:
+- display: Permanent Delete
+  action: /restmachine/cloudapi/disks/delete
+  refresh: true
+  input:
+  - label: Reason
+    type: text
+    name: reason
+  data:
+   diskId: ${id}
+   permanently: True
+
+- display: Restore
+  action: /restmachine/cloudapi/disks/restore
+  data:
+   diskId: $$id
+  input:
+  - reason
 }}
+{% endif %}
 {% endif %}
 
 {{disk_limitio: diskid:$$id}}
