@@ -313,7 +313,7 @@
   input:
   - reason
 
-- display: Permenant delete
+- display: Permanent delete
   action: /restmachine/cloudbroker/machine/destroy
   data:
    machineId: $$id

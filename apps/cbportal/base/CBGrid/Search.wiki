@@ -1,0 +1,128 @@
+@usedefaults
+
+{{grid.search request:'$$q'}}
+
+{{html:
+<script>
+    $(document).ready(function(){
+        $(".pages").click(function(){
+            var clicked = $(this)
+            $("#page_nr").val(clicked.val());
+            $("#search").submit();
+        });
+    });
+</script>
+ 
+<p class=test></p>
+<form id=search>
+    <input class=large_searchbox name="q" type="text" placeholder="Search.." id="q", autofocus, value='$$q'>
+    <button type="submit">Search</button>
+    <button type="button" class=reset Onclick="window.location.href='/cbgrid/Search?q='">Reset</button>
+    <div>
+        {% for category in FILTERS.keys() -%}
+            <span class=filters> 
+                <input type="checkbox" class=filter name=filter value=${category}
+                    {% if category in checked_filters %}
+                        checked
+                    {% endif %}
+                    > ${FILTERS[category].label} 
+                </input>
+            </span>
+        {% endfor %}
+    </div>
+    <input type=hidden name="page" id="page_nr"></p>
+</form>
+
+}}
+
+{% if total_page_count > 1 %}
+    {{html: <div>
+        {% for page in pages %}
+                <button class=${page.class} id=${page.id} value=${page.id}>${page.id}</button> 
+        {% endfor %}
+        </div>
+    }}
+{% endif %}
+
+{% for category in results.keys() %}
+    {% for item in results[category] %}
+        {% if item.name %}
+            h5. [${category}: ${item.name} |${FILTERS[category].url}${item.id}]
+        {% else %}
+            h5. [${category}: ${item.id} |${FILTERS[category].url}${item.id}]
+        {% endif %}
+        
+        {{html:
+            <p class=search_result>
+                ${item['output']}
+            </p>
+        }}
+
+    {% endfor %}
+{% endfor %}
+
+
+
+{{cssstyle
+
+p.search_result{
+    display: block;
+    margin-top: 0;
+    margin-bottom: 1em;
+}
+
+span.filters{
+    padding: 6px;
+}
+
+span.search_result{
+    padding: 2px;
+}
+
+button.pages{
+    border: none;
+    padding: 13px 28px;
+    font-size: 20px;
+}
+button.current_page{
+    border: none;
+    padding: 13px 28px;
+    font-size: 20px;    
+    background-color: #345d78;
+    color:white;
+}
+input.large_searchbox {
+    width: 50%;
+    padding: 100px 100px;
+    margin: 8px 8px;
+    box-sizing: border-box;
+
+}
+button[class=reset] {
+                position:relative;
+                padding:3px 20px;
+                left:-8px;
+                background-color:#345d78;
+                color:#fafafa;
+}
+button[type=submit] {
+                position:relative;
+                padding:3px 20px;
+                background-color:#345d78;
+                color:#fafafa;
+}
+button[class=reset]:hover  {
+                background-color: #6897bb;
+                color:#fafafa;
+}
+button[type=submit]:hover  {
+                background-color: #6897bb;
+                color:#fafafa;
+}
+
+}}
+
+
+
+
+

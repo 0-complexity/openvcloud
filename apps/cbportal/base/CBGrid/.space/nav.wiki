@@ -12,3 +12,4 @@ Physical Nodes:/cbgrid/physicalnodes
 0-access:/cbgrid/0-access ;0-access
 Software Versions:/cbgrid/Version
 Recycle Bin: /cbgrid/Recycle Bin
+Search: /cbgrid/Search?q=
