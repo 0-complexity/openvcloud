@@ -141,7 +141,7 @@ def main(options):
     gevent.joinall(pjobs)
 
     # mount disks if the filesystem will be used
-    if options.type == "filesytem":
+    if options.type == "filesystem":
         gevent.joinall([gevent.spawn(mount_disks, ovc, options, *vm) for vm in vms])
 
     # run fio tests

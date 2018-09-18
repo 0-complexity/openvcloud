@@ -26,7 +26,7 @@ class Cloudspace(object):
     MIGRATING = "MIGRATING"
     DISABLED = "DISABLED"
     DELETED = "DELETED"
-    INVALID_STATES = [DESTROYED, DELETED]
+    INVALID_STATES = [DESTROYED, DELETED, DESTROYING]
 
 
 class Account(object):

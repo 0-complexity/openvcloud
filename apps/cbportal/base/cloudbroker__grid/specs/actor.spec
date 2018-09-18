@@ -70,7 +70,7 @@
         var:nodestype str,, Type of nodes you want to apply the action on
         var:script str,, the script you want to run
 
-    method:status @noauth
+    method:status @method:get,post noauth
         """
         Check if current environment is active
         """

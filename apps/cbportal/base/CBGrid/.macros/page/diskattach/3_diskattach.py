@@ -9,9 +9,21 @@ def main(j, args, params, tags, tasklet):
     cl = db.cloudbroker
     disk = cl.disk.get(int(diskId))
     cloudspace_ids = cl.cloudspace.search(
-        {"$fields": ["id"], "$query": {"accountId": disk.accountId}}
+        {
+            "$fields": ["id"],
+            "$query": {
+                "accountId": disk.accountId,
+                "status": {"$nin": resourcestatus.Cloudspace.INVALID_STATES},
+            },
+        }
     )[1:]
-    machines = cl.vmachine.search({"cloudspaceId": {"$nin": cloudspace_ids}})[1:]
+    cloudspace_ids = [cs["id"] for cs in cloudspace_ids]
+    machines = cl.vmachine.search(
+        {
+            "cloudspaceId": {"$in": cloudspace_ids},
+            "status": {"$nin": resourcestatus.Machine.INVALID_STATES},
+        }
+    )[1:]
     machines_dropdown = []
     for machine in machines:
         name = "{}({})".format(machine["name"], machine["id"])
