@@ -629,19 +629,22 @@ class cloudapi_machines(BaseActor):
             disks = self.models.disk.search(
                 {"id": {"$in": vm.disks}, "type": {"$ne": "M"}}
             )[1:]
-            for disk in disks:
-                diskmapping.append(
-                    (
-                        j.apps.cloudapi.disks.getStorageVolume(disk, provider),
-                        "export/clonefordisk_%s" % disk["referenceId"].split("@")[1],
-                    )
-                )
+
             disks_snapshots = self.snapshot(
                 vm.id, "export_%s" % (str(datetime.now())), force=True
             )
-            volumes = provider.ex_clone_disks(diskmapping, disks_snapshots)
-            diskguids = [volume.vdiskguid for volume in volumes]
+
             try:
+                volumes = []
+                for disk in disks:
+                    diskguid = disk["referenceId"].split("@")[1]
+                    diskmapping = (
+                        j.apps.cloudapi.disks.getStorageVolume(disk, provider),
+                        "export/clonefordisk_%s" % diskguid,
+                    )
+                    volume = provider.ex_clone_disks([diskmapping], disks_snapshots)
+                    volumes.append(volume[0])
+
                 disknames = [volume.id.split("@")[0] for volume in volumes]
                 osname = self.models.image.get(vm.imageId).name
                 os = re.match("^[a-zA-Z]+", osname).group(0).lower()
@@ -664,6 +667,7 @@ class cloudapi_machines(BaseActor):
                 )
                 jobargs = uploaddata.copy()
                 jobargs.update({"envelope": envelope, "disks": disknames})
+
                 export_job = self.acl.executeJumpscript(
                     "greenitglobe",
                     "cloudbroker_export",
@@ -673,6 +677,7 @@ class cloudapi_machines(BaseActor):
                     args=jobargs,
                 )
             finally:
+                diskguids = [volume.vdiskguid for volume in volumes]
                 provider.destroy_volumes_by_guid(diskguids)
             # TODO: the url to be sent to the user
             if export_job["state"] == "ERROR":
