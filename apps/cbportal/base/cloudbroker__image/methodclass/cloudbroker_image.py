@@ -47,6 +47,10 @@ class cloudbroker_image(BaseActor):
         image = self._checkimage(imageId)
         if image.status in resourcestatus.Image.INVALID_STATES:
             raise exceptions.BadRequest("Can not enable a deleted image")
+        
+        if image.status == resourcestatus.Image.CREATING:
+            raise exceptions.BadRequest("Can not do  this action on uncreated Image")
+
         self.models.image.updateSearch(
             {"id": imageId}, {"$set": {"status": resourcestatus.Image.CREATED}}
         )
@@ -61,6 +65,8 @@ class cloudbroker_image(BaseActor):
         image = self._checkimage(imageId)
         if image.status in resourcestatus.Image.INVALID_STATES:
             raise exceptions.BadRequest("Can not disable a deleted image")
+        if image.status == resourcestatus.Image.CREATING:
+            raise exceptions.BadRequest("Can not do  this action on uncreated Image")
         self.models.image.updateSearch(
             {"id": imageId}, {"$set": {"status": resourcestatus.Image.DISABLED}}
         )
