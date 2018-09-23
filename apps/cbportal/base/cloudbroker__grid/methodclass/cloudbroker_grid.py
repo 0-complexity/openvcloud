@@ -64,7 +64,7 @@ class cloudbroker_grid(BaseActor):
         jobinfo = self.cb.executeJumpscript(
             "greenitglobe",
             "execute_installer_command",
-            role="controllernode",
+            role="controller",
             gid=j.application.whoAmI.gid,
             args={"cmd": "cluster pre-flight-check"},
         )

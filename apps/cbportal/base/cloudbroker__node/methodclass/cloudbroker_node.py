@@ -141,7 +141,7 @@ class cloudbroker_node(BaseActor):
         jobinfo = self.cb.executeJumpscript(
             "greenitglobe",
             "execute_installer_command",
-            role="controllernode",
+            role="controller",
             gid=node["gid"],
             args=args,
         )

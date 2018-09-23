@@ -8,20 +8,12 @@ category = "cloudbroker"
 organization = "greenitglobe"
 license = "bsd"
 version = "1.0"
-roles = []
+roles = ["controller"]
 async = True
 
-
-def get_client():
-    cmd = "kubectl --kubeconfig /root/.kube/config get service management-ssh -o=jsonpath='{.spec.clusterIP}'"
-    host = j.system.process.execute(cmd)[1]
-    client = j.remote.cuisine.connect(host, 22)
-    return client
-
-
 def action(cmd):
-    client = get_client()
-    response = client.run("installer {}".format(cmd), warn_only=True)
+    mgt = j.remote.cuisine.connect("management", 2205)
+    response = mgt.run("installer {}".format(cmd), warn_only=True)
     return dict(
         return_code=response.return_code, stdout=response.stdout, stderr=response
     )
