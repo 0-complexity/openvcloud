@@ -102,7 +102,7 @@ class cloudbroker_node(BaseActor):
         )
 
     @auth(groups=["level2", "level3"])
-    def decomission(self, nid, vmaction, **kwargs):
+    def decommission(self, nid, vmaction, **kwargs):
         node = self._getNode(nid)
         gid = node["gid"]
         if "storagedriver" in node["roles"]:

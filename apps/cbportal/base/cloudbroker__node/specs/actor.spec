@@ -23,7 +23,7 @@
         var:nids list(int),,nids of storagerouter
         var:message str,,message. Must be less than 30 characters @optional
 
-    method:decomission
+    method:decommission
         """
         Set node status to 'DECOMMISSIONED' and remove from relevant process for vms and markoff for storage routers
         """
