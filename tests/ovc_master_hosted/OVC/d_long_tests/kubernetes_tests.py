@@ -55,34 +55,23 @@ class KubernetesTests(BasicACLTest):
         self.lg("Choose random controller node to preform the test on it")
         pods = get_pods()
         target_controller = random.choice([node for node in controller_nodes if node['name'] != pods["qa"]["node"]])
+
+        cmd = "ipmitool lan print | grep 'IP Address   ' | awk '{print $4}'"
+        target_controller_ipmiip = self.execute_command_on_physical_node(cmd, target_controller["id"]).strip()
         controller_nodes.remove(target_controller)
 
-        try:
-            self.lg("Power off target controller")
-            acl.executeJumpscript(
-                "greenitglobe",
-                "execute_installer_command",
-                role="controller",
-                gid=j.application.whoAmI.gid,
-                args={"cmd": "node action shutdown --name {}".format(target_controller["name"])},
-                wait=True
-            )
+        # try:
+        #     cmd = "ipmitool -I lanplus -H {} -U admin -P admin chassis power off".format(target_controller_ipmiip)
+        #     self.execute_command_on_physical_node(cmd, controller_nodes[0]["id"])
+            
+        #     # time.sleep(7 * 60)
 
-            time.sleep(7 * 60)
+        #     _pods = [pod for pod in get_pods() if pod["status"] != "UNKNOWN"]
+        #     for pod in pods.keys():
+        #         self.assertIn(pod, _pods.keys())
+        #         self.assertEqual(_pods[pod]["status"], pods[pod]["status"])
+        #         self.assertNotEqual(_pods[pod]["node"], target_controller["name"])
 
-            _pods = [pod for pod in get_pods() if pod["status"] != "UNKNOWN"]
-            for pod in pods.keys():
-                self.assertIn(pod, _pods.keys())
-                self.assertEqual(_pods[pod]["status"], pods[pod]["status"])
-                self.assertNotEqual(_pods[pod]["node"], target_controller["name"])
-
-        finally:
-            self.lg("Power on target controller")
-            acl.executeJumpscript(
-                "greenitglobe",
-                "execute_installer_command",
-                role="controller",
-                gid=j.application.whoAmI.gid,
-                args={"cmd": "node action power_on --name {}".format(target_controller["name"])},
-                wait=True
-            )
+        # finally:
+        #     cmd = "ipmitool -I lanplus -H {} -U admin -P admin chassis power on".format(target_controller_ipmiip)
+        #     self.execute_command_on_physical_node(cmd, controller_nodes[0]["id"])
