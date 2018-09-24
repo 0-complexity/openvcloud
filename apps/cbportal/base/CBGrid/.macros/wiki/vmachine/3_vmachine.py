@@ -74,7 +74,7 @@ def main(j, args, params, tags, tasklet):
         args.doc.applyTemplate({})
         return params
 
-    if obj.status not in resourcestatus.Machine.INVALID_STATES:
+    if obj.status not in resourcestatus.Machine.INVALID_STATES and obj.stackId:
         with gevent.Timeout(15, False):
             # refresh from reality + get snapshots
             try:
