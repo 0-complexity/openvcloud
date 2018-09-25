@@ -20,35 +20,25 @@ def action():
     initiate upgrade
     """
     import yaml
+    import requests
 
-    def get_revision(branch, tag):
-        match = ""
-        if tag:
-            match = "tags/{}".format(tag)
-        elif branch:
-            match = "heads/{}".format(branch)
-        else:
-            raise RuntimeError("No tag or branch set on repo")
-        _, output = j.system.process.execute(
-            "git ls-remote {}".format(ovc_installer_url)
-        )
-        for line in output.splitlines():
-            if line.endswith(match):
-                return line.split()[0]
+    def get_branch_or_tag(repos):
+        for repo in repos:
+            if repo["url"] == ovc_installer_url:
+                tag = repo["target"].get("tag")
+                branch = repo["target"].get("branch")
+                break
+        result = tag or branch
+        return result
 
-    zero_complexity_path = "/opt/code/github/0-complexity/"
-    repo_path = zero_complexity_path + "openvcloud_installer"
+    job_source = "https://raw.githubusercontent.com/0-complexity/openvcloud_installer/{}/scripts/kubernetes/upgrader/upgrader-job.yaml"
     scl = j.clients.osis.getNamespace("system")
     versionmodel = scl.version.searchOne({"status": "INSTALLING"})
     ovc_installer_url = "https://github.com/0-complexity/openvcloud_installer"
     manifest = yaml.load(versionmodel["manifest"])
     manifest["version"] = versionmodel["name"]
     manifest["url"] = versionmodel["url"]
-    for repo in manifest["repos"]:
-        if repo["url"] == ovc_installer_url:
-            tag = repo["target"].get("tag")
-            branch = repo["target"].get("branch")
-            break
+    revision = get_branch_or_tag(manifest["repos"])
 
     try:
         with open("/tmp/versions-manifest.yaml", "w+") as file_descriptor:
@@ -59,25 +49,18 @@ def action():
     finally:
         j.system.fs.remove("/tmp/versions-manifest.yaml")
 
-    j.do.pullGitRepo(
-        "https://github.com/0-complexity/openvcloud_installer/",
-        ignorelocalchanges=True,
-        reset=True,
-        tag=tag,
-        branch=branch,
-    )
-    with open(
-        "{}/scripts/kubernetes/upgrader/upgrader-job.yaml".format(repo_path)
-    ) as fil_desc:
-        upgrader_data = yaml.load(fil_desc)
+    upgrader_data = yaml.load(requests.get(job_source.format(revision)).content)
 
-    for volume in upgrader_data["spec"]["template"]["spec"]["volumes"]:
-        if (
-            volume.get("gitRepo")
-            and volume["gitRepo"]["repository"] == ovc_installer_url
-        ):
-            volume["gitRepo"]["revision"] = str(get_revision(branch, tag))
-            break
+    for conttype in ("initContainers", "containers"):
+        if conttype not in upgrader_data["spec"]["template"]["spec"]:
+            continue
+        for container in upgrader_data["spec"]["template"]["spec"][conttype]:
+            if container["image"] in manifest["images"]:
+                container["image"] = "{}:{}".format(
+                    container["image"],
+                    manifest["images"][container["image"]],
+                )
+
     try:
         with open("/tmp/upgrader-job.yaml", "w+") as file_descriptor:
             yaml.dump(upgrader_data, file_descriptor)
