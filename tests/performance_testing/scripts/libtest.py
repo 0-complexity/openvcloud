@@ -125,9 +125,9 @@ def execute_async_ovc(ovc, api, **kwargs):
     return gevent.spawn(_run)
 
 
-def mount_disks(ovc, options, machine_id, publicip, publicport, mountpoint="/mnt/vdb"):
+def mount_disks(ovc, concurrency, options, machine_id, publicip, publicport, mountpoint="/mnt/vdb"):
     # only one data disk for this test
-    machine = safe_get_vm(ovc, options.concurrency, machine_id)
+    machine = safe_get_vm(ovc, concurrency, machine_id)
     account = machine["accounts"][0]
     templ = 'sshpass -p "{0}" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p {1} {2}@{3} '
     templ += " bash mount_disks.sh {0} b {4} {5}"
