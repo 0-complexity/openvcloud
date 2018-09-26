@@ -24,6 +24,11 @@ def main(j, args, params, tags, tasklet):
             "id": "domain",
             "value": "[%(domain)s|/CBGrid/cloud space?id=%(domain)s]",
         },
+        {
+            "name": "Network Type",
+            "id": "type",
+            "value": "type",
+        },
         {"name": "Public IPs", "id": "external", "value": makeNS, "type": "text"},
         {"name": "Management IP", "id": "host", "value": "host", "type": "text"},
     ]

@@ -62,7 +62,7 @@
         Deploy VFW
         """
         var:cloudspaceId int,, id of the cloudspace
-        var:type str,zgw,Type of router for cloudspace
+        var:type str,routeros,Type of router for cloudspace
 
     method:startVFW
         """
@@ -75,7 +75,7 @@
         Change the routertype of your cloudspace
         """
         var:cloudspaceId int,, id of the cloudspace
-        var:routertype str,, routertype to change to gw or routeros
+        var:routertype str,, routertype to change to vgw or routeros
 
 
     method:stopVFW
@@ -101,7 +101,7 @@
         var:externalnetworkId int,, Id of external network to connect to @optional
         var:allowedVMSizes list(int),, allowed sizes per cloudspace @optional
         var:privatenetwork str,192.168.103.0/24,private network to use for cloudspace eg. 192.168.103.0/24 @optional
-        var:type str,zgw,Type of router to use for the cloudspace @optional
+        var:type str,routeros,Type of router to use for the cloudspace @optional
 
     method:update
         """

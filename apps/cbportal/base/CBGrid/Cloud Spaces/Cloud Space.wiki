@@ -72,10 +72,10 @@ h2. Cloud Space: ${name}
     label: Choose Router Type
     type: dropdown
     values:
-      - label: "Gateway"
-        value: "gw"
       - label: "Router OS"
         value: "routeros"
+      - label: "Virtaul Gateway"
+        value: "vgw"
   data:
    async: True
    cloudspaceId: $$id

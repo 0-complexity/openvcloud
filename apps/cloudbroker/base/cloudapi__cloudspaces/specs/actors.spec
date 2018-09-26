@@ -19,7 +19,7 @@
         var:externalnetworkId int,, id of externalnetwork to connect to @optional
         var:allowedVMSizes list(int),, allowed sizes per cloudspace @optional
         var:privatenetwork str,192.168.103.0/24,Private network CIDR eg. 192.168.103.0/24 @optional
-        var:type str,zgw,Type of cloudspace router @optional
+        var:type str,routeros,Type of cloudspace router @optional
         result:int, id of created cloudspace
 
     method:deploy

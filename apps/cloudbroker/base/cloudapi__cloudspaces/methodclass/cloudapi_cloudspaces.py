@@ -243,8 +243,8 @@ class cloudapi_cloudspaces(BaseActor):
                     privatenetwork.cidr
                 )
             )
-        if type not in ["gw", "routeros"]:
-            raise exceptions.BadRequest("Cloud Space type can only be gw or routeros")
+        if type not in ["vgw", "routeros"]:
+            raise exceptions.BadRequest("Cloud Space type can only be vgw or routeros")
 
         location = locations[0]
         if externalnetworkId:

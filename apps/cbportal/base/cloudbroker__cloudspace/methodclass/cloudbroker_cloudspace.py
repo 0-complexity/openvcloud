@@ -400,8 +400,8 @@ class cloudbroker_cloudspace(BaseActor):
     @auth(groups=["level1", "level2", "level3"])
     def changeRouterType(self, cloudspaceId, routertype, **kwargs):
         cloudspace = self._getCloudSpace(cloudspaceId)
-        if routertype not in ["gw"]:
-            raise exceptions.BadRequest("Can only change to vfw type gw")
+        if routertype not in ["vgw"]:
+            raise exceptions.BadRequest("Can only change to vfw type vgw")
         fwid = "{gid}_{networkId}".format(**cloudspace)
         if routertype == cloudspace["type"]:
             return
@@ -413,7 +413,7 @@ class cloudbroker_cloudspace(BaseActor):
             {"id": cloudspace["id"]}, {"$set": {"type": routertype}}
         )
         update = {"type": routertype}
-        if routertype == "gw":
+        if routertype == "vgw":
             update["host"] = ""
         self.vfwcl.virtualfirewall.updateSearch({"guid": fwid}, {"$set": update})
         if startfw:

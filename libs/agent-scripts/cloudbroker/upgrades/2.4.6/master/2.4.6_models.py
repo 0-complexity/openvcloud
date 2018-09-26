@@ -2,6 +2,7 @@ from JumpScale import j
 
 descr = """
 Will set the `url` and `lastModified` fields with default values
+Will migrate models of vfw
 """
 
 category = "libvirt"

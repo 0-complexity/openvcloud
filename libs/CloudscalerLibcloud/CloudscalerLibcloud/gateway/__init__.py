@@ -22,7 +22,7 @@ def render(templatename, **kwargs):
     return env.render(**kwargs) + "\n"
 
 
-class Gateway:
+class Gateway(object):
     def __init__(self, vfwobj):
         self.leases = vfwobj.get("leases") or []
         self.privatenetwork = netaddr.IPNetwork(vfwobj["privatenetwork"])
@@ -54,18 +54,17 @@ class Gateway:
             bridgename = j.system.ovsnetconfig.createExtNetwork(self.external["vlan"])
             if not self.connection.checkNetwork(bridgename):
                 self.connection.createNetwork(bridgename, bridgename)
-            gateway = self.external['gateway']
+            gateway = self.external["gateway"]
             j.system.ovsnetconfig.connectInNameSpace(
-                bridgename,
-                self.name,
-                self.external["ips"][0],
-                gateway,
-                "public",
+                bridgename, self.name, self.external["ips"][0], gateway, "public"
             )
-        j.system.process.execute("ip -n {} address add 169.254.169.254/32 dev lo".format(self.name))
+        j.system.process.execute(
+            "ip -n {} address add 169.254.169.254/32 dev lo".format(self.name)
+        )
 
     def start(self):
         if self.is_running():
+            self.destroy()
             self.apply_firewall_rules()
             self.update_leases()
             self.update_proxies()

@@ -54,7 +54,7 @@ h2. Private Network: ${id} (${'%04x' % id})
   reload: true
   data:
    cloudspaceId: ${domain}
-   routertype: gw
+   routertype: vgw
   input:
   - type: message
     messagetype: warning
