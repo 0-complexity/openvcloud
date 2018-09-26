@@ -1543,9 +1543,10 @@ class cloudapi_machines(BaseActor):
                     disks_snapshots[snapshot["diskguid"]] = snapshot["guid"]
 
         try:
+            userdata, metadata = self.cb.machine.get_user_meta_data(clone.name, password, image.type)
             node = provider.ex_clone(
-                node,
-                password,
+                userdata,
+                metadata,
                 image.type,
                 {"memory": machine.memory, "vcpus": machine.vcpus},
                 clone.id,

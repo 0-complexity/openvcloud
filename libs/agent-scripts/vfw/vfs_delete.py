@@ -1,18 +1,19 @@
 from JumpScale import j
 
-descr = """Deletes an LXC machine"""
+descr = """Deletes gateway"""
 
-name = "vfs_delete"
 category = "vfw"
 organization = "jumpscale"
-author = "zains@incubaid.com"
+author = "deboeckj@gig.tech"
 license = "bsd"
 version = "1.0"
 roles = []
+queue = "default"
 
 
-def action(name):
-    import JumpScale.lib.lxc
+def action(fwobject):
+    from CloudscalerLibcloud.gateway import Gateway
 
-    j.system.platform.lxc.destroy(name)
+    gateway = Gateway(fwobject)
+    gateway.destroy()
     return True

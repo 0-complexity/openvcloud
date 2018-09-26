@@ -68,6 +68,14 @@ h2. Cloud Space: ${name}
   reload: false
   input:
   - reason
+  - name: type
+    label: Choose Router Type
+    type: dropdown
+    values:
+      - label: "Gateway"
+        value: "gw"
+      - label: "Router OS"
+        value: "routeros"
   data:
    async: True
    cloudspaceId: $$id

@@ -10,7 +10,7 @@ def main(j, args, params, tags, tasklet):
         filters[tag] = val
 
     def makeNS(row, field):
-        return str(", ".join(row[field]))
+        return str(", ".join(row[field]['ips']))
 
     fields = [
         {"name": "GID", "id": "gid", "value": "[%(gid)s|/CBGrid/grid?gid=%(gid)s]"},
@@ -24,7 +24,7 @@ def main(j, args, params, tags, tasklet):
             "id": "domain",
             "value": "[%(domain)s|/CBGrid/cloud space?id=%(domain)s]",
         },
-        {"name": "Public IPs", "id": "pubips", "value": makeNS, "type": "text"},
+        {"name": "Public IPs", "id": "external", "value": makeNS, "type": "text"},
         {"name": "Management IP", "id": "host", "value": "host", "type": "text"},
     ]
     tableid = modifier.addTableFromModel("vfw", "virtualfirewall", fields, filters)

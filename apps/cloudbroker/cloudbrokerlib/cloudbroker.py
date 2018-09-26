@@ -26,7 +26,7 @@ DEFAULTIOPS = 2000
 
 class OSIS(object):
     def __init__(self):
-        self._osis = j.clients.osis.getByInstance('main')
+        self._osis = j.clients.osis.getByInstance("main")
 
     def __getattr__(self, attr):
         namespace = j.clients.osis.getNamespace(attr, self._osis)
@@ -532,14 +532,23 @@ class CloudSpace(object):
             cloudspace.externalnetworkip = None
         return cloudspace
 
-    def get_leases(self, cloudspaceId):
+    def get_leases_cloudinit(self, cloudspaceId):
         leases = []
-        for vm in models.vmachine.search(
+        cloudinit = []
+        vms = models.vmachine.search(
             {
                 "cloudspaceId": cloudspaceId,
                 "status": {"$nin": resourcestatus.Machine.INVALID_STATES},
-            }
-        )[1:]:
+            },
+            size=0,
+        )[1:]
+        imageIds = list(set(vm["imageId"] for vm in vms))
+        images = {
+            image["id"]: image
+            for image in models.image.search({"id": {"$in": imageIds}})[1:]
+        }
+
+        for vm in vms:
             for nic in vm["nics"]:
                 if (
                     nic["ipAddress"] != "Undefined"
@@ -549,7 +558,22 @@ class CloudSpace(object):
                     leases.append(
                         {"mac-address": nic["macAddress"], "address": nic["ipAddress"]}
                     )
-        return leases
+                    image = images[vm["imageId"]]
+                    for account in vm["accounts"]:
+                        password = account["password"]
+                        break
+                    else:
+                        continue
+                    userdata, metadata = self.cb.machine.get_user_meta_data(
+                        vm["name"], password, image["type"]
+                    )
+                    vmdata = {
+                        "mac": nic["macAddress"],
+                        "user-data": userdata,
+                        "meta-data": metadata,
+                    }
+                    cloudinit.append(vmdata)
+        return leases, cloudinit
 
     def update_firewall(self, cloudspace, **kwargs):
         fwid = "{}_{}".format(cloudspace.gid, cloudspace.networkId)
@@ -699,6 +723,49 @@ class Machine(object):
             {"id": {"$in": disks}}, {"$set": {"status": resourcestatus.Disk.DESTROYED}}
         )
 
+    def get_user_meta_data(self, name, defaultuserpassword, imagetype, userdata=None):
+        customuserdata = userdata or {}
+        if isinstance(customuserdata, basestring):
+            customuserdata = yaml.load(customuserdata)
+        hostname = re.sub("[^\w\d\-_]", "", name)[:63] or 'vm'
+        if type not in ["WINDOWS", "Windows"]:
+            memrule = 'SUBSYSTEM=="memory", ACTION=="add", TEST=="state", ATTR{state}=="offline", ATTR{state}="online"'
+            cpurule = 'SUBSYSTEM=="cpu", ACTION=="add", TEST=="online", ATTR{online}=="0", ATTR{online}="1"'
+            runcmds = []
+            runcmds.append(
+                "echo '{}' > /etc/udev/rules.d/66-hotplug.rules".format(memrule)
+            )
+            runcmds.append(
+                "echo '{}' >> /etc/udev/rules.d/66-hotplug.rules".format(cpurule)
+            )
+            runcmds.append(["udevadm", "control", "-R"])
+
+            userdata = {
+                "password": defaultuserpassword,
+                "users": [
+                    {
+                        "name": "user",
+                        "plain_text_passwd": defaultuserpassword,
+                        "lock-passwd": False,
+                        "shell": "/bin/bash",
+                        "sudo": "ALL=(ALL) ALL",
+                    }
+                ],
+                "ssh_pwauth": True,
+                "runcmd": runcmds,
+                "manage_etc_hosts": True,
+                "chpasswd": {"expire": False},
+            }
+            metadata = {"local-hostname": hostname}
+            if "users" in customuserdata:
+                users = customuserdata.pop("users", [])
+                userdata["users"].extend(users)
+            userdata.update(customuserdata)
+        else:
+            userdata = {}
+            metadata = {"admin_pass": defaultuserpassword, "hostname": hostname}
+        return userdata, metadata
+
     def createModel(
         self,
         name,
@@ -754,7 +821,7 @@ class Machine(object):
         if hasattr(image, "username") and image.username:
             account.login = image.username
         elif image.type != "Custom Templates":
-            account.login = "cloudscalers"
+            account.login = "user"
         else:
             account.login = "Custom login"
             account.password = "Custom password"
@@ -863,11 +930,15 @@ class Machine(object):
             bootvolume.iotune = firstdisk.iotune
             volumes.insert(0, bootvolume)
             createdvolumes.append(bootvolume)
-            metavolume = spaceprovider._create_metadata_iso(
-                edgeclient, name, auth.password, image.type, userdata
-            )
-            createdvolumes.append(metavolume)
-            volumes.insert(1, metavolume)
+            if cloudspace.type == "routeros":
+                userdata, metadata = self.get_user_meta_data(
+                    name, auth.password, image.type, userdata
+                )
+                metavolume = spaceprovider._create_metadata_iso(
+                    edgeclient, name, userdata, metadata
+                )
+                createdvolumes.append(metavolume)
+                volumes.insert(1, metavolume)
             for volume in volumes:
                 if not volume.id:
                     vol = spaceprovider.create_volume(

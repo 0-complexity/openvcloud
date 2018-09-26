@@ -188,6 +188,7 @@
     prop:status str,, status of the cloudspace, e.g VIRTUAL/DEPLOYED/DESTROYED @index
     prop:location str,, datacenterlocation
     prop:gid int,, Grid ID @index
+    prop:type str,,Type of gateway to deploy gw or routeros
     prop:secret str,, used to identify a space through the cloud robot
     prop:creationTime int,, epoch time of creation, in seconds @index
     prop:updateTime int,, epoch time of creation, in seconds @index

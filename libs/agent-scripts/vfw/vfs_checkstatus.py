@@ -1,27 +1,21 @@
 from JumpScale import j
 
 descr = """
-Checks shorewall status
+Checks status
 """
 
 name = "vfs_checkstatus"
 category = "vfw"
 organization = "jumpscale"
-author = "zains@incubaid.com"
+author = "deboeckj@gig.tech"
 license = "bsd"
 version = "1.0"
 roles = []
+queue = "default"
 
 
-def action(name):
-    import JumpScale.lib.lxc
-    import JumpScale.lib.nginx
-    import JumpScale.lib.shorewall
-    import JumpScale.baselib.remote
+def action(fwobject):
+    from CloudscalerLibcloud.gateway import Gateway
 
-    host = j.system.platform.lxc.getIp(name)
-    password = j.application.config.get("system.superadmin.passwd")
-
-    shorewallclient = j.system.platform.shorewall.get(host, password)
-
-    return shorewallclient.status()
+    gateway = Gateway(fwobject)
+    return gateway.is_running()

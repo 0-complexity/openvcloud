@@ -53,6 +53,9 @@ class Network(object):
             interface, mac, bridge = self.get_external_interface(domain)
         except LookupError:
             return
+        return self.protect_external_bridge(bridge, interface, mac, ipaddress)
+
+    def protect_external_bridge(self, bridge, interface, mac, ipaddress):
         ipaddress = str(netaddr.IPNetwork(ipaddress).ip)
         port = self.get_port(interface)
         self.cleanup_flows(bridge, port, mac, ipaddress)

@@ -29,7 +29,8 @@ def action():
         {
             "nid": j.application.whoAmI.nid,
             "accesstime": {"$gt": int(time.time()) - 7200},
-        }
+            "type": "routeros"
+        }, size=0
     )[1:]
     acl = j.clients.agentcontroller.get()
     edgeip, edgeport, edgetransport = acl.execute(

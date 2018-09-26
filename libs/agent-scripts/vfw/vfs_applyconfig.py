@@ -1,31 +1,25 @@
 from JumpScale import j
 
 descr = """
-Applies the rules in the passed fwobject to the given LXC machine name
+Applies the rules in the passed fwobject
 """
 
 name = "vfs_applyconfig"
 category = "vfw"
 organization = "jumpscale"
-author = "zains@incubaid.com"
+author = "deboeckj@gig.tech"
 license = "bsd"
 version = "1.0"
 roles = []
+queue = "default"
 
 
-def action(name, fwobject):
-    import JumpScale.lib.lxc
-    import JumpScale.lib.nginx
-    import JumpScale.lib.shorewall
-    import JumpScale.baselib.remote
+def action(fwobject):
+    from CloudscalerLibcloud.gateway import Gateway
 
-    host = j.system.platform.lxc.getIp(name)
-    password = j.application.config.get("system.superadmin.passwd")
-
-    nginxclient = j.system.platform.nginx.get(host, password)
-    shorewallclient = j.system.platform.shorewall.get(host, password)
-
-    nginxclient.configure(fwobject)
-    shorewallclient.configure(fwobject)
-
+    gateway = Gateway(fwobject)
+    gateway.apply_firewall_rules()
+    gateway.update_leases()
+    gateway.update_proxies()
+    gateway.update_cloud_init()
     return True

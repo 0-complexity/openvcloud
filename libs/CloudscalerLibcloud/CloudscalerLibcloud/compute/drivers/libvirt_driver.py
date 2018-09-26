@@ -494,46 +494,7 @@ class CSLibvirtNodeDriver(object):
         )
         return node
 
-    def _create_metadata_iso(self, edgeclient, name, password, type, userdata=None):
-        customuserdata = userdata or {}
-        if isinstance(customuserdata, basestring):
-            customuserdata = yaml.load(customuserdata)
-        if type not in ["WINDOWS", "Windows"]:
-            memrule = 'SUBSYSTEM=="memory", ACTION=="add", TEST=="state", ATTR{state}=="offline", ATTR{state}="online"'
-            cpurule = 'SUBSYSTEM=="cpu", ACTION=="add", TEST=="online", ATTR{online}=="0", ATTR{online}="1"'
-            runcmds = []
-            runcmds.append(
-                "echo '{}' > /etc/udev/rules.d/66-hotplug.rules".format(memrule)
-            )
-            runcmds.append(
-                "echo '{}' >> /etc/udev/rules.d/66-hotplug.rules".format(cpurule)
-            )
-            runcmds.append(["udevadm", "control", "-R"])
-
-            userdata = {
-                "password": password,
-                "users": [
-                    {
-                        "name": "cloudscalers",
-                        "plain_text_passwd": password,
-                        "lock-passwd": False,
-                        "shell": "/bin/bash",
-                        "sudo": "ALL=(ALL) ALL",
-                    }
-                ],
-                "ssh_pwauth": True,
-                "runcmd": runcmds,
-                "manage_etc_hosts": True,
-                "chpasswd": {"expire": False},
-            }
-            metadata = {"local-hostname": name}
-            if "users" in customuserdata:
-                users = customuserdata.pop("users", [])
-                userdata["users"].extend(users)
-            userdata.update(customuserdata)
-        else:
-            userdata = {}
-            metadata = {"admin_pass": password, "hostname": name}
+    def _create_metadata_iso(self, edgeclient, name, userdata, metadata):
 
         diskpath = "{0}/cloud-init-{0}".format(name)
         dtype = self.ccl.disktype.get('M')
@@ -964,8 +925,8 @@ class CSLibvirtNodeDriver(object):
 
     def ex_clone(
         self,
-        node,
-        password,
+        userdata,
+        metadata,
         imagetype,
         size,
         vmid,
@@ -977,7 +938,7 @@ class CSLibvirtNodeDriver(object):
         name = "vm-%s" % vmid
         volumes = self.ex_clone_disks(diskmapping, disks_snapshots)
         volumes.append(
-            self._create_metadata_iso(volumes[0].edgeclient, name, password, imagetype)
+            self._create_metadata_iso(volumes[0].edgeclient, name, userdata, metadata)
         )
         return self.init_node(
             name,

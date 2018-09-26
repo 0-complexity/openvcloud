@@ -57,16 +57,26 @@ def createVM(xml, netinfo):
         con.close()
 
 
-def action(networkid, publicip, publicgwip, publiccidr, password, vlan, privatenetwork):
+def action(vfw):
     from CloudscalerLibcloud.utils import libvirtutil
     from CloudscalerLibcloud.utils.network import Network, NetworkTool
     import pexpect
     import netaddr
     import jinja2
     import time
+    import uuid
     import os
 
     hrd = j.atyourservice.get(name="vfwnode", instance="main").hrd
+    networkid = vfw['id']
+    publicnet = netaddr.IPNetwork(vfw['external']['ips'][0])
+    publicip = str(publicnet.ip)
+    publicgwip = vfw['external']['gateway']
+    publiccidr = publicnet.prefixlen
+    password = str(uuid.uuid4())
+    privatenetwork = vfw['privatenetwork']
+    vlan = vfw['external']['vlan']
+
     netrange = hrd.get("instance.vfw.netrange.internal")
     defaultpasswd = hrd.get("instance.vfw.admin.passwd")
     username = hrd.get("instance.vfw.admin.login")

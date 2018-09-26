@@ -237,7 +237,12 @@ class cloudbroker_cloudspace(BaseActor):
         vfwobj.nid = int(self.cb.getBestStack(gid)["referenceId"])
         vfwobj.domain = str(newcloudspace.id)
         self.vfwcl.virtualfirewall.set(vfwobj)
-        result = self.cb.netmgr.fw_migrate(vfwobj, sourceip, vfwobj.nid)
+        if vfwobj.type == "routeros":
+            result = self.cb.netmgr.fw_migrate(vfwobj, sourceip, vfwobj.nid)
+        else:
+            result = self.cb.netmgr._fw_create(
+                vfwobj, targetNid=vfwobj.nid, isnew=False
+            )
         if result:
             self.models.cloudspace.updateSearch(
                 {"id": newcloudspace.id},
@@ -289,14 +294,14 @@ class cloudbroker_cloudspace(BaseActor):
         "Finished deploying Cloud Space",
         "Failed to deploy Cloud Space",
     )
-    def deployVFW(self, cloudspaceId, **kwargs):
+    def deployVFW(self, cloudspaceId, type, **kwargs):
         """
         Deploy VFW
         param:cloudspaceId id of the cloudspace
         """
         self._getCloudSpace(cloudspaceId)
 
-        return j.apps.cloudapi.cloudspaces.deploy(cloudspaceId=cloudspaceId)
+        return j.apps.cloudapi.cloudspaces.deploy(cloudspaceId=cloudspaceId, type=type)
 
     @auth(groups=["level1", "level2", "level3"])
     @async(
@@ -353,8 +358,9 @@ class cloudbroker_cloudspace(BaseActor):
         Start VFW
         param:cloudspaceId id of the cloudspace
         """
-        cloudspaceId = self._getCloudSpace(cloudspaceId)["id"]
-        cloudspace = self.models.cloudspace.get(cloudspaceId)
+        cloudspaceobj = self._getCloudSpace(cloudspaceId)
+        cloudspace = self.models.cloudspace.new()
+        cloudspace.load(cloudspaceobj)
         if cloudspace.status == resourcestatus.Cloudspace.DELETED:
             raise exceptions.BadRequest("Selected Cloud Space is deleted")
         fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
@@ -370,8 +376,9 @@ class cloudbroker_cloudspace(BaseActor):
         Stop VFW
         param:cloudspaceId id of the cloudspace
         """
-        cloudspaceId = self._getCloudSpace(cloudspaceId)["id"]
-        cloudspace = self.models.cloudspace.get(cloudspaceId)
+        cloudspaceobj = self._getCloudSpace(cloudspaceId)
+        cloudspace = self.models.cloudspace.new()
+        cloudspace.load(cloudspaceobj)
         fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
         result = self.cb.netmgr.fw_stop(fwid=fwid)
         self.vfwcl.virtualfirewall.updateSearch(
@@ -381,13 +388,37 @@ class cloudbroker_cloudspace(BaseActor):
 
     @auth(groups=["level1", "level2", "level3"])
     def destroyVFW(self, cloudspaceId, **kwargs):
-        cloudspaceId = self._getCloudSpace(cloudspaceId)["id"]
-        cloudspace = self.models.cloudspace.get(cloudspaceId)
+        cloudspaceobj = self._getCloudSpace(cloudspaceId)
+        cloudspace = self.models.cloudspace.new()
+        cloudspace.load(cloudspaceobj)
         self._destroyVFW(cloudspace.gid, cloudspaceId)
         self.cb.cloudspace.release_resources(cloudspace, False)
         cloudspace.status = resourcestatus.Cloudspace.VIRTUAL
         self.models.cloudspace.set(cloudspace)
         return True
+
+    @auth(groups=["level1", "level2", "level3"])
+    def changeRouterType(self, cloudspaceId, routertype, **kwargs):
+        cloudspace = self._getCloudSpace(cloudspaceId)
+        if routertype not in ["gw"]:
+            raise exceptions.BadRequest("Can only change to vfw type gw")
+        fwid = "{gid}_{networkId}".format(**cloudspace)
+        if routertype == cloudspace["type"]:
+            return
+        startfw = False
+        if self.cb.netmgr.fw_check(fwid):
+            startfw = True
+            self.cb.netmgr.fw_stop(fwid)
+        self.models.cloudspace.updateSearch(
+            {"id": cloudspace["id"]}, {"$set": {"type": routertype}}
+        )
+        update = {"type": routertype}
+        if routertype == "gw":
+            update["host"] = ""
+        self.vfwcl.virtualfirewall.updateSearch({"guid": fwid}, {"$set": update})
+        if startfw:
+            return self.cb.netmgr.fw_start(fwid)
+        return
 
     def _destroyVFW(self, gid, cloudspaceId, deletemodel=True):
         fws = self.cb.netmgr.fw_list(gid=int(gid), domain=str(cloudspaceId))
@@ -468,6 +499,7 @@ class cloudbroker_cloudspace(BaseActor):
         externalnetworkId=None,
         allowedVMSizes=[],
         privatenetwork=netmgr.DEFAULTCIDR,
+        type="routeros",
         **kwargs
     ):
         """
@@ -482,6 +514,7 @@ class cloudbroker_cloudspace(BaseActor):
         :param maxNumPublicIP: max number of assigned public IPs
         :param allowedVMSizes: alowed sizes for a cloudspace
         :param private network: private network
+        :param type: Type of router for cloudspace
         :return: True if update was successful
         """
         if not access:
@@ -518,6 +551,7 @@ class cloudbroker_cloudspace(BaseActor):
             externalnetworkId=externalnetworkId,
             allowedVMSizes=allowedVMSizes,
             privatenetwork=privatenetwork,
+            type=type,
             ctx=kwargs["ctx"],
         )
 

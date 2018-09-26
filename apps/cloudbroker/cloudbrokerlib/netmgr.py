@@ -60,12 +60,10 @@ class NetManager(object):
         self,
         gid,
         domain,
-        password,
         publicip,
         type,
         networkid,
         publicgwip,
-        publiccidr,
         vlan,
         targetNid=None,
         privatenetwork=DEFAULTCIDR,
@@ -77,82 +75,82 @@ class NetManager(object):
         param:nid node id
         param:masquerade do you want to allow masquerading?
         param:login admin login to the firewall
-        param:password admin password to the firewall
         param:host management address to manage the firewall
         param:type type of firewall e.g routeros, ...
         """
-        fwid = "{}_{}".format(gid, networkid)
-        if not self.osisvfw.exists(fwid):
-            isnew = True
-            fwobj = self.osisvfw.new()
+        vfw = self.osisvfw.new()
+        vfw.domain = domain
+        vfw.id = networkid
+        vfw.gid = gid
+        vfw.privatenetwork = privatenetwork
+        vfw.external.ips = [publicip]
+        vfw.external.vlan = vlan
+        vfw.external.gateway = publicgwip
+        vfw.type = type
+        vfw.state = "STARTED"
+        vfw.guid = self.osisvfw.set(vfw)[0]
+        return self._fw_create(vfw, targetNid)
+
+    def _fw_create(self, vfw, targetNid, isnew=True):
+        args = {"name": "%s_%s" % (vfw.domain, vfw.name)}
+        if targetNid:
+            nid = targetNid
         else:
-            isnew = False
-            fwobj = self.osisvfw.get(fwid)
-        fwobj.domain = domain
-        fwobj.id = networkid
-        fwobj.gid = gid
-        fwobj.vlan = vlan
-        fwobj.pubips = [publicip]
-        fwobj.type = type
-        fwobj.state = "STARTED"
-        key = self.osisvfw.set(fwobj)[0]
-        args = {"name": "%s_%s" % (fwobj.domain, fwobj.name)}
-        if type == "routeros":
-            args = {
-                "networkid": networkid,
-                "password": password,
-                "publicip": publicip,
-                "publicgwip": publicgwip,
-                "privatenetwork": privatenetwork,
-                "vlan": vlan,
-                "publiccidr": publiccidr,
-            }
-            if targetNid:
-                nid = targetNid
-            else:
-                nid = int(
-                    self.cb.getBestStack(gid, memory=128, routeros=True)["referenceId"]
-                )
+            nid = int(
+                self.cb.getBestStack(vfw.gid, memory=128, routeros=True)[
+                    "referenceId"
+                ]
+            )
+        vfw.nid = nid
+        self.osisvfw.set(vfw)
+        if vfw.type == "routeros":
+            args = {"vfw": vfw.dump()}
             job = self.cb.scheduleCmd(
                 nid=nid,
                 cmdcategory="jumpscale",
                 cmdname="vfs_create_routeros",
-                gid=gid,
+                gid=vfw.gid,
                 args=args,
                 wait=True,
             )
-            fwobj.deployment_jobguid = job["guid"]
-            self.osisvfw.set(fwobj)
+            vfw.deployment_jobguid = job["guid"]
+            self.osisvfw.set(vfw)
             result = self.cb.agentcontroller.waitJumpscript(job=job)
 
             if result["state"] != "OK":
                 if isnew:
-                    self.osisvfw.delete(key)
+                    self.osisvfw.delete(vfw.guid)
                 raise exceptions.ServiceUnavailable(
                     "Failed to create fw for domain %s job was %s"
-                    % (domain, result["id"])
+                    % (vfw.domain, result["id"])
                 )
             data = result["result"]
-            fwobj.host = data["internalip"]
-            fwobj.username = data["username"]
-            fwobj.password = data["password"]
-            fwobj.nid = data["nid"]
-            self.osisvfw.set(fwobj)
-            self.fw_reapply(fwid)
+            vfw.host = data["internalip"]
+            vfw.username = data["username"]
+            vfw.password = data["password"]
+            self.osisvfw.set(vfw)
+            self.fw_reapply(vfw.guid)
             return result
         else:
+            args = {"vfw": vfw.dump()}
             job = self.cb.scheduleCmd(
-                nid=None,
+                nid=nid,
                 cmdcategory="jumpscale",
-                cmdname="vfs_routeros",
-                roles=["fw"],
-                gid=gid,
+                cmdname="vfs_create",
+                gid=vfw.gid,
                 args=args,
                 wait=True,
             )
-            fwobj.deployment_jobguid = job["guid"]
-            self.osisvfw.set(fwobj)
+            vfw.deployment_jobguid = job["guid"]
+            self.osisvfw.set(vfw)
             result = self.cb.agentcontroller.waitJumpscript(job=job)
+            if result["state"] != "OK":
+                if isnew:
+                    self.osisvfw.delete(vfw.guid)
+                raise exceptions.ServiceUnavailable(
+                    "Failed to create fw for domain %s job was %s"
+                    % (vfw.domain, result["id"])
+                )
             return result
 
     def fw_move(self, fwid, targetNid, **kwargs):
@@ -165,18 +163,24 @@ class NetManager(object):
                     return nicinfo["ip"][0]
 
         srcip = get_backplane_ip(srcnode)
-        return self.fw_migrate(fwobj, srcip, targetNid, **kwargs)
+        if fwobj.type == "routeros":
+            return self.fw_migrate(fwobj, srcip, targetNid, **kwargs)
+        else:
+            self.fw_stop(fwobj.guid)
+            return self.fw_start(fwobj.guid, resettype="factory", targetNid=targetNid)
 
     def fw_migrate(self, fwobj, sourceip, targetNid, **kwargs):
         args = {
             "networkid": fwobj.id,
-            "vlan": fwobj.vlan,
-            "externalip": fwobj.pubips[0],
+            "vlan": fwobj.external.vlan,
+            "externalip": fwobj.external.ips[0],
             "sourceip": sourceip,
         }
         self.osisvfw.updateSearch(
             {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
         )
+        if fwobj.type != "routeros":
+            raise RuntimeError("Can not migrate vfw of type {}".format(fwobj.type))
         job = self.cb.executeJumpscript(
             "jumpscale", "vfs_migrate_routeros", nid=targetNid, gid=fwobj.gid, args=args
         )
@@ -336,15 +340,13 @@ class NetManager(object):
                         raise exceptions.ServiceUnavailable(
                             "Failed to remove vfw with id %s" % fwid
                         )
-            if deletemodel:
-                self.osisvfw.delete(fwid)
         else:
-            result = self.cb.executeJumpscript(
+            args = {"fwobject": fwobj.dump()}
+            self.cb.executeJumpscript(
                 "jumpscale", "vfs_delete", nid=fwobj.nid, gid=fwobj.gid, args=args
             )["result"]
-            if result:
-                self.osisvfw.delete(fwid)
-            return result
+        if deletemodel:
+            self.osisvfw.delete(fwid)
 
     def fw_restore(self, fwid, targetNid=None, **kwargs):
         fwobj = self.osisvfw.get(fwid)
@@ -369,6 +371,7 @@ class NetManager(object):
                 "jumpscale", "vfs_applyconfig_routeros", gid=gid, nid=nid, args=args
             )
         else:
+            args.pop("name")
             job = self.cb.executeJumpscript(
                 "jumpscale", "vfs_applyconfig", gid=gid, nid=nid, args=args
             )
@@ -428,7 +431,9 @@ class NetManager(object):
         self.osisvfw.updateSearch(
             {"guid": fwobj["guid"]}, {"$set": {"moddate": int(time.time())}}
         )
-        fwobj["leases"] = self.cb.cloudspace.get_leases(int(fwobj["domain"]))
+        fwobj["leases"], fwobj["cloud-init"] = self.cb.cloudspace.get_leases_cloudinit(
+            int(fwobj["domain"])
+        )
         args = {"name": "%(domain)s_%(name)s" % fwobj, "fwobject": fwobj}
         return self._applyconfig(fwobj["gid"], fwobj["nid"], args)
 
@@ -555,27 +560,11 @@ class NetManager(object):
             raise exceptions.BadRequest(
                 "Can not reset VFW which has no external network IP please deploy instead."
             )
-        if resettype == "restore":
+        restored = False
+        if resettype == "restore" and fwobj.type == "routeros":
             restored = self.fw_restore(fwid, targetNid)
         if resettype == "factory" or not restored:
-            pool = self.cbmodel.externalnetwork.get(cloudspace.externalnetworkId)
-            externalipaddress = netaddr.IPNetwork(cloudspace.externalnetworkip)
-            publicgw = pool.gateway
-            publiccidr = externalipaddress.prefixlen
-            password = str(uuid.uuid4())
-            self.fw_create(
-                fwobj.gid,
-                fwobj.domain,
-                password,
-                fwobj.pubips[0],
-                "routeros",
-                fwobj.id,
-                publicgw,
-                publiccidr,
-                pool.vlan,
-                targetNid,
-                cloudspace.privatenetwork,
-            )
+            return self._fw_create(fwobj, targetNid, isnew=False)
         fwobj = self._getVFWObject(fwid)  # to get updated model
         self.osisvfw.updateSearch(
             {"guid": fwobj.guid}, {"$set": {"moddate": int(time.time())}}
@@ -589,11 +578,6 @@ class NetManager(object):
                 nid=fwobj.nid,
                 args=args,
             )
-        else:
-            job = self.cb.executeJumpscript(
-                "jumpscale", "vfs_start", gid=fwobj.gid, nid=fwobj.nid, args=args
-            )
-
         if job["state"] != "OK":
             raise exceptions.ServiceUnavailable("Failed to start vfw")
         self.fw_reapply(fwid)
@@ -610,6 +594,7 @@ class NetManager(object):
         )
         args = {"networkid": fwobj.id}
         if fwobj.type == "routeros":
+            args = {"networkid": fwobj.id}
             job = self.cb.executeJumpscript(
                 "jumpscale",
                 "vfs_stop_routeros",
@@ -618,8 +603,9 @@ class NetManager(object):
                 args=args,
             )
         else:
+            args = {"fwobject": fwobj.dump()}
             job = self.cb.executeJumpscript(
-                "jumpscale", "vfs_stop", gid=fwobj.gid, nid=fwobj.nid, args=args
+                "jumpscale", "vfs_delete", gid=fwobj.gid, nid=fwobj.nid, args=args
             )
 
         if job["state"] != "OK":
@@ -647,6 +633,7 @@ class NetManager(object):
                 timeout=timeout,
             )
         else:
+            args = {"fwobject": fwobj.dump()}
             job = self.cb.executeJumpscript(
                 "jumpscale", "vfs_checkstatus", gid=fwobj.gid, nid=fwobj.nid, args=args
             )

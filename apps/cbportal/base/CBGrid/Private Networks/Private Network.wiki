@@ -48,6 +48,19 @@ h2. Private Network: ${id} (${'%04x' % id})
     - label: Factory reset
       value: factory
   - reason
+{% if type == "routeros" %}
+- display: Change Router Type
+  action: /restmachine/cloudbroker/cloudspace/changeRouterType
+  reload: true
+  data:
+   cloudspaceId: ${domain}
+   routertype: gw
+  input:
+  - type: message
+    messagetype: warning
+    message: You are about to change VFW router type:</br>
+             This will cause some small downtime of the router
+{% endif %}
 - display: Reapply Config
   action: /restmachine/cloudbroker/cloudspace/applyConfig
   reload: false
@@ -79,11 +92,12 @@ h2. Private Network: ${id} (${'%04x' % id})
 {{createportforwarding: cloudspaceId:${domain}}}
 
 h3. Details
-|*Management IP*| ${host}|
-|*Public IPs*|${pubips}|
+|*Public IPs*| ${external.ips|join(', ')}|
+|*CloudSpace*|[${cloudspaceName}|cloud space?id=${cloudspaceId}]|
 |*FW Node*|[${nodename}|/grid/grid node?id=${nid}&gid=${gid}]|
 |*Status*| ${running} |
-|*CloudSpace ID*|[${domain}|cloud space?id=${domain}]|
+|*Type*| ${type} |
+|*Management IP*| ${host}|
 
 h3. Port Fowardings
 

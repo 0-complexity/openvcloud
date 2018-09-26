@@ -201,6 +201,7 @@ class cloudapi_cloudspaces(BaseActor):
         externalnetworkId=None,
         allowedVMSizes=[],
         privatenetwork=netmgr.DEFAULTCIDR,
+        type="routeros",
         **kwargs
     ):
         """
@@ -217,6 +218,7 @@ class cloudapi_cloudspaces(BaseActor):
         :param maxNumPublicIP: max number of assigned public IPs
         :param externalnetworkId: Id of externalnetwork
         :param privatenetwork: Private network CIDR
+        :param type: Type of the network
         :return: True if update was successful
         :return int with id of created cloudspace
         """
@@ -241,6 +243,8 @@ class cloudapi_cloudspaces(BaseActor):
                     privatenetwork.cidr
                 )
             )
+        if type not in ["gw", "routeros"]:
+            raise exceptions.BadRequest("Cloud Space type can only be gw or routeros")
 
         location = locations[0]
         if externalnetworkId:
@@ -302,6 +306,7 @@ class cloudapi_cloudspaces(BaseActor):
         cs.secret = str(uuid.uuid4())
         cs.creationTime = int(time.time())
         cs.updateTime = int(time.time())
+        cs.type = type
         # Validate that the specified CU limits can be reserved on account, since there is a
         # validation earlier that maxNumPublicIP > 0 (or -1 meaning unlimited), this check will
         # make sure that 1 Public IP address will be reserved for this cloudspace
@@ -350,7 +355,6 @@ class cloudapi_cloudspaces(BaseActor):
         :return: status of deployment
         """
         try:
-            password = str(uuid.uuid4())
             with self.models.cloudspace.lock(cloudspaceId):
                 cs = self.models.cloudspace.get(cloudspaceId)
                 if cs.status != resourcestatus.Cloudspace.VIRTUAL:
@@ -372,18 +376,15 @@ class cloudapi_cloudspaces(BaseActor):
             externalipaddress = netaddr.IPNetwork(cs.externalnetworkip)
             networkid = cs.networkId
             publicgw = pool.gateway
-            publiccidr = externalipaddress.prefixlen
 
             try:
                 self.netmgr.fw_create(
                     cs.gid,
                     str(cloudspaceId),
-                    password,
-                    str(externalipaddress.ip),
-                    "routeros",
+                    str(externalipaddress),
+                    cs.type,
                     networkid,
                     publicgwip=publicgw,
-                    publiccidr=publiccidr,
                     vlan=pool.vlan,
                     privatenetwork=cs.privatenetwork,
                 )

@@ -16,14 +16,18 @@
     prop:wsForwardRules list(wsForwardRule),,set of rules for reverse proxy
     prop:networkid str,,
     prop:internalip str,,
-    prop:pubips list(str),,
+    prop:external externalNetwork,,
+    prop:privatenetwork str,,
     prop:version int,2,
-    prop:vlan int,,VLAN of the public network
     prop:state str,, OK;ERROR;INIT;DELETED
     prop:moddate int,,
     prop:accesstime int,,
     prop:deployment_jobguid str,, jobs excecutedin deployment guid
 
+[model:externalNetwork]
+    prop:ips list(str),, External IP in cidr notation
+    prop:gateway str,,External gateway
+    prop:vlan int,, Vlan ID
 
 [model:tcpForwardRule] #@index
     """
@@ -35,5 +39,6 @@
     prop:protocol str,,tcp or upd
 
 [model:wsForwardRule] #@index
-    prop:url str,,url domain name e.g. www.incubaid.com
-    prop:toUrls str,,e.g. [192.168.1.20:3000/test/...]   #so can be port; ip; url part; when more than 1 then loadbalancing
+    prop:host str,,domain name e.g. www.incubaid.com
+    prop:destinations list(str),,e.g. [192.168.1.20:3000/test/...]   #so can be port; ip; url part; when more than 1 then loadbalancing
+    prop:protocols list(str),,http https or shttps (self signed https)
