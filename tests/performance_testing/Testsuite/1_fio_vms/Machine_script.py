@@ -116,7 +116,7 @@ if __name__ == "__main__":
                 machineId,
                 account_pass,
                 iteration,
-                datasize_process,
+                int(datasize_process),
                 write_type,
                 rwmixwrite,
                 bs,

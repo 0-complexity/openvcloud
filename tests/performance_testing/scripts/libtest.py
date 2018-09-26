@@ -94,16 +94,19 @@ def push_results_to_repo(res_dir, location):
             "push your results"
         )
     repo = config.get("locations", location)
+    env = config.get("locations", location).split("/")[-1].split(".")[0]
     repo_dir = "/tmp/" + str(uuid.uuid4()) + "/"
     res_folder_name = res_dir.split("/")[-1]
     subprocess.run(["mkdir", "-p", repo_dir])
     subprocess.run("cd %s; git clone %s" % (repo_dir, repo), shell=True)
-    repo_path = os.listdir(repo_dir)[0]
+    repo_path = repo_dir + env
     repo_result_dir = repo_path + "/testresults/"
     subprocess.run(["mkdir", "-p", repo_result_dir])
     subprocess.run(["cp", "-rf", res_dir, repo_result_dir])
     os.chdir(repo_result_dir + res_folder_name)
     subprocess.run(["git", "add", "*.csv", "parameters.md"])
+    subprocess.run(["git", "config", "--global", "user.email", 'support@gig.tech'])
+    subprocess.run(["git", "config", "--global", "user.name", 'GIG Support'])
     subprocess.run(["git", "commit", "-a", "-m", "Pushing new results"])
     subprocess.run(["git", "push"])
 
