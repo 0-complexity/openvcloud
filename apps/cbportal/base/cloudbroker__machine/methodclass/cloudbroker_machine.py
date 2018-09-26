@@ -198,7 +198,6 @@ class cloudbroker_machine(BaseActor):
         provider = self.cb.getProviderByGID(cloudspace.gid)
         for disk in disks:
             name = ""
-            data = False
             size = disk.sizeMax
             if disk.type == "B":
                 name = "vm-{0}/bootdisk-vm-{0}".format(vm.id)
@@ -207,8 +206,8 @@ class cloudbroker_machine(BaseActor):
                 size = 0.1
             elif disk.type == "D":
                 name = str(disk.id)
-                data = True
-            volume = provider.create_volume(size, name, data)
+            vpool = self.models.disktype.get(disk.type).vpool
+            volume = provider.create_volume(size, name, vpool, disk.type)
             disk.referenceId = volume.id
             self.models.disk.set(disk)
 

@@ -1,10 +1,11 @@
 def main(j, args, params, tags, tasklet):
     from cloudbrokerlib import resourcestatus
-
+    from cloudbrokerlib.cloudbroker import db
     page = args.page
     modifier = j.html.getPageModifierGridDataTables(page)
-    disktypemap = {"D": "Data", "B": "Boot", "T": "Temp", "M": "Meta"}
-
+    dtypes = db.cloudbroker.disktype.search({"$fields": ['id', 'description']})[1:]
+    disktypemap = {dtype['id']: dtype['description'] for dtype in dtypes}    
+        
     def disk_size(row, field):
         return "{} Gib".format(row[field])
 

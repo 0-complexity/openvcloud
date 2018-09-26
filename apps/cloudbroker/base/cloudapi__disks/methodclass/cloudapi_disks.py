@@ -50,6 +50,12 @@ class cloudapi_disks(BaseActor):
         )
         return volume
 
+    def get_max_size(self, gid, type):
+        dtype = self.models.disktype.get(type)
+        provider = provider = self.cb.getProviderByGID(gid)
+        block_size = provider.get_vpool_blocksize(dtype.vpool)
+        return int((512 * block_size) / (dtype.cacheratio/100.0))
+
     @authenticator.auth(acl={"account": set("C")})
     def create(
         self,
@@ -85,7 +91,7 @@ class cloudapi_disks(BaseActor):
             )
             disk, _ = self._create(accountId, gid, name, description, size, type, iops)
             return disk.id
-
+    
     def _create(
         self,
         accountId,
@@ -99,13 +105,17 @@ class cloudapi_disks(BaseActor):
         nid=None,
         order=None,
         **kwargs
-    ):
-        if size > 2000 and type != "P":
-            raise exceptions.BadRequest("Disk size can not be bigger than 2000 GB")
+    ):  
+        max_size = self.get_max_size(gid, type) 
+        if size >  max_size and type != "P":
+            raise exceptions.BadRequest("Disk size can not be bigger than {} GB".format(max_size))
         if type == "P" and not (physicalSource and nid):
             raise exceptions.BadRequest(
                 "Need to specify both node id and physical source for disk of type 'P'"
             )
+        types = self.models.disktype.search({'id': type})[1:]
+        if not types:
+            raise exceptions.BadRequest("Disk type not found")
 
         disk = self.models.disk.new()
         disk.name = name
@@ -118,6 +128,7 @@ class cloudapi_disks(BaseActor):
         disk.iotune = {"total_iops_sec": iops}
         disk.accountId = accountId
         disk.id = self.models.disk.set(disk)[0]
+        dtype = self.models.disktype.get(type)
         try:
             provider = self.cb.getProviderByGID(gid)
             if type == "P":
@@ -127,7 +138,7 @@ class cloudapi_disks(BaseActor):
                 disk.referenceId = volumeid
                 volume = self.getStorageVolume(disk, provider)
             else:
-                volume = provider.create_volume(disk.sizeMax, disk.id)
+                volume = provider.create_volume(disk.sizeMax, disk.id, dtype.vpool, type)
                 volume.iotune = disk.iotune
                 disk.referenceId = volume.id
             disk.status = resourcestatus.Disk.CREATED
@@ -318,9 +329,10 @@ class cloudapi_disks(BaseActor):
         :param diskId: id of disk to delete
         :param size: the new size of the disk in GB
         """
-        if size > 2000:
-            raise exceptions.BadRequest("Size can not be more than 2TB")
         disk = self.models.disk.get(diskId)
+        max_size = self.get_max_size(disk.gid, disk.type)
+        if size > max_size:
+            raise exceptions.BadRequest("Size can not be more than {}G".format(max_size))
         if disk.type == "M":
             raise exceptions.BadRequest("Can't resize a disk of type Meta")
         if disk.sizeMax >= size:
@@ -382,3 +394,84 @@ class cloudapi_disks(BaseActor):
         for diskId in diskIds:
             self.delete(diskId, False, permanently, reason=reason)
         return True
+    
+    @authenticator.auth(groups=["level1", "level2", "level3"])
+    def addType(self, id, description, vpool=None, cacheratio=None, snapshotable=True, **kwargs):
+        if cacheratio <= 0 and vpool:
+            raise exceptions.BadRequest(
+                "Cache Ratio must be larger than Zero"
+            )
+        dtype = self.models.disktype.searchOne({'id': id})
+        if dtype:
+            raise exceptions.BadRequest(
+                "Disk type with id: {} already exits, Please choose other name".format(id)
+            )
+        disk_type = self.models.disktype.new()
+        disk_type.id = id
+        disk_type.description = description
+        disk_type.snapshotable = snapshotable
+        disk_type.vpool = vpool
+        disk_type.cacheratio = cacheratio
+        self.models.disktype.set(disk_type)
+        return True
+
+    @authenticator.auth()
+    def updateType(self, id, description=None, vpool=None, cacheratio=None, snapshotable=None, **kwargs):
+        dtype = self.models.disktype.searchOne({'id': id})
+        if not dtype:
+            raise exceptions.BadRequest(
+                "Can not find Disk Type with id: {}".format(id)
+            )
+        
+        if cacheratio <= 0 and (dtype['vpool'] or vpool):
+            raise exceptions.BadRequest(
+                "Cache Ratio must be larger than Zero"
+            )
+        update = {}
+        if description:
+            update["description"] = description
+        if vpool:
+            update["vpool"] = vpool
+        if cacheratio:
+            update["cacheratio"] = cacheratio
+        if snapshotable == "False":
+            update["snapshotable"] = False
+        elif snapshotable == "True":
+            update["snapshotable"] = True
+
+        if update:
+            self.models.disktype.updateSearch({"id": id}, {"$set": update})
+
+
+    @authenticator.auth(groups=["level1", "level2", "level3"])
+    def deleteTypes(self, typeIds, **kwargs):
+        if not isinstance(typeIds, list):
+            typeIds = [typeIds]
+        for typeId in typeIds:
+            dtype = self.models.disktype.searchOne({'id': typeId})
+            if not dtype:
+                raise exceptions.BadRequest(
+                    "Can not find Disk Type with id: {}".format(typeId)
+                )
+        for typeId in typeIds:
+            self.models.disktype.delete(typeId)
+        return True
+
+    @authenticator.auth(groups=["level1", "level2", "level3"])
+    def deleteType(self, id, **kwargs):
+        dtype = self.models.disktype.searchOne({'id': id})
+        if not dtype:
+            raise exceptions.BadRequest(
+                "Can not find Disk Type with id: {}".format(id)
+            )
+        self.models.disktype.delete(id)
+        return True
+
+    def listTypes(self, **kwargs):
+        """
+        List the disk types Ids
+        """
+        types = self.models.disktype.search({})
+        return types
+
+

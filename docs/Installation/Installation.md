@@ -177,8 +177,8 @@ installer --config {config file} node action --name {node name} install_os
 
 From the management container execute:
 ```bash
-export ENVNAME="be-g8-3"
 ssh -A ovs # this will get you on the Open vStorage pod (specially prepared to have systemd)  
+export ENVNAME="be-g8-3"
 # let's generate the config
 cd /opt/code/github/0-complexity/openvcloud_installer/scripts/ovs/
 python3 ovs_configurator.py --config_path=/opt/cfg/system/system-config.yaml
@@ -188,11 +188,13 @@ cd /opt/code/github/openvstorage
 git clone git@github.com:openvstorage/dev_ops.git -b 4.1.4
 mkdir -p dev_ops/Ansible/openvstorage/playbooks/inventories/$ENVNAME/group_vars
 # copy our generated files
-cp /opt/code/github/0-complexity/openvcloud_installer/scripts/ovs/output/{inventory,setup.json} /opt/code/github/openvstorage/dev_ops/Ansible/openvstorage/playbooks/inventoeries/$ENVNAME/
-cp /opt/code/github/0-complexity/openvcloud_installer/scripts/ovs/output/all /opt/code/github/openvstorage/dev_ops/Ansible/openvstorage/playbooks/inventoeries/$ENVNAME/group_vars
+cp /opt/code/github/0-complexity/openvcloud_installer/scripts/ovs/output/{inventory,setup.json} /opt/code/github/openvstorage/dev_ops/Ansible/openvstorage/playbooks/inventories/$ENVNAME/
+cp /opt/code/github/0-complexity/openvcloud_installer/scripts/ovs/output/all /opt/code/github/openvstorage/dev_ops/Ansible/openvstorage/playbooks/inventories/$ENVNAME/group_vars
 # preinstall script which installs Ansible
-bash /opt/code/github/openvstorage/dev_ops/Ansible/openvstorage/bin/pre-install.sh
-cd /opt/code/github/openvstorage/dev_ops/Ansible/playbooks/
+cd /opt/code/github/openvstorage/dev_ops/Ansible/openvstorage/bin
+bash pre-install.sh
+   
+cd /opt/code/github/openvstorage/dev_ops/Ansible/openvstorage/playbooks/
 ansible-playbook -i inventories/$ENVNAME/inventory preInstall.yml
 # this last step is not very bullet proof and might need to be repeated
 ansible-playbook -i inventories/$ENVNAME/inventory full_setup.yml

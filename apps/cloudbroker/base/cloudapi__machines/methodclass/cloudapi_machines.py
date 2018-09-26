@@ -379,7 +379,8 @@ class cloudapi_machines(BaseActor):
             volume = provider.create_volume(
                 image.size,
                 "templates/{}_{}".format(machineId, templateName),
-                data=False,
+                vpool="vmstor",
+                type="C"
             )
             image_path = provider.ex_create_template(
                 node, templateName, volume.vdiskguid

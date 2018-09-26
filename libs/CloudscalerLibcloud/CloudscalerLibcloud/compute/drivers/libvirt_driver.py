@@ -15,6 +15,7 @@ import random
 import string
 import yaml
 import datetime
+import re
 
 baselength = len(string.lowercase)
 env = Environment(loader=PackageLoader("CloudscalerLibcloud", "templates"))
@@ -188,6 +189,7 @@ def OpenvStorageVolumeFromXML(disk, driver):
 class CSLibvirtNodeDriver(object):
 
     _ovsdata = {}
+    _vpools_blocksize = {}
     type = "CSLibvirt"
 
     NODE_STATE_MAP = {
@@ -210,6 +212,7 @@ class CSLibvirtNodeDriver(object):
         self.stack = stack
         self.env = env
         self.scl = j.clients.osis.getNamespace("system")
+        self.ccl = j.clients.osis.getNamespace("cloudbroker")
         grid = self.scl.grid.get(self.gid)
         self.node = self.scl.node.get(self.id)
         self.config = GridConfig(grid, self.node.memory / 1024.)
@@ -240,22 +243,6 @@ class CSLibvirtNodeDriver(object):
             self._ovsdata[cachekey] = connection
         return self._ovsdata[cachekey]
 
-    @property
-    def ovs_settings(self):
-        cachekey = "ovs_settings_{}".format(self.gid)
-        if cachekey not in self._ovsdata:
-            grid_settings = self.config.get("ovs_settings", dict())
-            settings = dict(
-                vpool_vmstor_metadatacache=grid_settings.get(
-                    "vpool_vmstor_metadatacache", 20
-                ),
-                vpool_data_metadatacache=grid_settings.get(
-                    "vpool_data_metadatacache", 20
-                ),
-            )
-            self._ovsdata[cachekey] = settings
-        return self._ovsdata[cachekey]
-
     def getVolumeId(self, vdiskguid, edgeclient, name):
         username = self.ovs_credentials.get("edgeuser")
         password = self.ovs_credentials.get("edgepassword")
@@ -274,6 +261,15 @@ class CSLibvirtNodeDriver(object):
         return self._execute_agent_job(
             "listedgeclients", role="storagemaster", ovs_connection=self.ovs_connection
         )
+
+    def get_vpool_blocksize(self, vpool_prefix):
+        if vpool_prefix in self._vpools_blocksize:
+            return self._vpools_blocksize[vpool_prefix]
+        else:
+            self._vpools_blocksize = self._execute_agent_job(
+                "getvpoolsblocksize", role="storagemaster", ovs_connection=self.ovs_connection
+            )
+            return self._vpools_blocksize.get(vpool_prefix, None)
 
     def list_vdisks(self, storagerouterguid):
         return self._execute_agent_job(
@@ -329,7 +325,7 @@ class CSLibvirtNodeDriver(object):
             ):
                 return edgeclient, edgeclients
 
-    def getBestDataVpool(self):
+    def getBestVpool(self, prefix):
         edgeclients = self.edgeclients[:]
         diskspervpool = {}
         for edgeclient in edgeclients:
@@ -339,7 +335,8 @@ class CSLibvirtNodeDriver(object):
             )
         if len(diskspervpool) > 1:
             for vpool in list(diskspervpool.keys()):
-                if not vpool.startswith("data"):
+                vpool_prefix = re.sub('\d+', '', vpool)
+                if prefix != vpool_prefix:
                     diskspervpool.pop(vpool)
         # get vpool with least vdiskcount
         return (
@@ -404,13 +401,14 @@ class CSLibvirtNodeDriver(object):
         edgeclient = self.getNextEdgeClient("vmstor")
 
         diskname = "{0}/bootdisk-{0}".format(vm_id)
+        dtype = self.ccl.disktype.get('B')
         kwargs = {
             "ovs_connection": self.ovs_connection,
             "storagerouterguid": edgeclient["storagerouterguid"],
             "size": disksize,
             "templateguid": image.referenceId,
             "diskname": diskname,
-            "pagecache_ratio": self.ovs_settings["vpool_vmstor_metadatacache"],
+            "pagecache_ratio": dtype.cacheratio or 20,
         }
 
         try:
@@ -428,21 +426,22 @@ class CSLibvirtNodeDriver(object):
             edgeclient,
         )
 
-    def create_volume(self, size, name, data=True, dev=""):
-        if data:
-            vpoolname, edgeclients = self.getBestDataVpool()
-            edgeclient = self.getNextEdgeClient(vpoolname, edgeclients)
-            diskname = "volumes/volume_{}".format(name)
+    def create_volume(self, size, name, vpool=None, type=None, dev=""):
+        if type:
+            dtype = self.ccl.disktype.get(type)
+            cacheratio = dtype.cacheratio or 20
         else:
-            edgeclient = self.getNextEdgeClient("vmstor")
-            diskname = name
+            cacheratio = 20
+        vpoolname, edgeclients = self.getBestVpool(vpool)
+        edgeclient = self.getNextEdgeClient(vpoolname, edgeclients)
+        diskname = "volumes/volume_{}".format(name) if vpool == "data" else name
         kwargs = {
             "ovs_connection": self.ovs_connection,
             "vpoolguid": edgeclient["vpoolguid"],
             "storagerouterguid": edgeclient["storagerouterguid"],
             "diskname": diskname,
             "size": size,
-            "pagecache_ratio": self.ovs_settings["vpool_data_metadatacache"],
+            "pagecache_ratio": cacheratio
         }
         try:
             vdiskguid = self._execute_agent_job(
@@ -537,13 +536,14 @@ class CSLibvirtNodeDriver(object):
             metadata = {"admin_pass": password, "hostname": name}
 
         diskpath = "{0}/cloud-init-{0}".format(name)
+        dtype = self.ccl.disktype.get('M')
         kwargs = {
             "ovs_connection": self.ovs_connection,
             "vpoolguid": edgeclient["vpoolguid"],
             "storagerouterguid": edgeclient["storagerouterguid"],
             "diskname": diskpath,
             "size": 0.1,
-            "pagecache_ratio": self.ovs_settings["vpool_data_metadatacache"],
+            "pagecache_ratio": dtype.cacheratio or 20,
         }
         try:
             vdiskguid = self._execute_agent_job(

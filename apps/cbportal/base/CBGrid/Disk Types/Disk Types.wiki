@@ -1,0 +1,46 @@
+@usedefaults
+{{actions: gridbinding:'table_cloudbroker_disktype typeIds'
+- display: Delete Disk Types
+  action: /restmachine/cloudapi/disks/deleteTypes
+  reload: true
+  input:
+  - reason
+ }}
+h3. Disk Types:
+
+{{actions:
+- display: Add Disk Type
+  action: /restmachine/cloudapi/disks/addType
+  
+  input:
+  - name: id
+    label: Id
+    type: text
+    required: true
+  - name: description
+    label: Description
+    required: true
+    type: text
+  - name: vpool
+    label: Vpool
+    required: false
+    type: text
+
+  - name: cacheratio
+    label: Cache Ratio
+    type: number
+    required: false
+
+  - name: snapshotable
+    label: Snapshotable
+    type: dropdown
+    required: true
+    values:
+     - label: "Yes"
+       value: true
+     - label: "No"
+       value: false
+     
+}}
+
+{{disktypes}}

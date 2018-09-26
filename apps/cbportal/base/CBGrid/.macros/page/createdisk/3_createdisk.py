@@ -5,7 +5,8 @@ def main(j, args, params, tags, tasklet):
     from cloudbrokerlib.cloudbroker import db
 
     params.result = page = args.page
-    disk_types = [("Data disk", "D"), ("Boot disk", "B")]
+    dtypes = db.cloudbroker.disktype.search({"$fields": ['id', 'description']})[1:]
+    disk_types = [(dtype['description'], dtype['id']) for dtype in dtypes]
     accountId = args.getTag("accountId")
     locations = list()
     for location in db.cloudbroker.location.search({})[1:]:

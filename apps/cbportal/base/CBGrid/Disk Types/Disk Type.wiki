@@ -1,0 +1,57 @@
+@usedefault
+@@title Disk Type: ${description}
+{{disktype}}
+{% if id %}
+h3. Disk Type: ${description}
+{{actions:
+- display: Edit
+  action: /restmachine/cloudapi/disks/updateType
+  data:
+   id: $$id
+  input:
+  - name: description 
+    label: Description 
+    placeholder: leave empty if you want to remain unchanged
+    type: text
+  - name: vpool
+    label: Vpool
+    placeholder: leave empty if you want to remain unchanged
+    type: text
+
+  - name: cacheratio
+    label: Cache Ratio
+    placeholder: leave empty if you want to remain unchanged
+    type: number
+
+  - name: snapshotable
+    label: Snapshotable
+    type: dropdown
+    values:
+     - label: "Don't change"
+       value: "old"
+     - label: "Yes"
+       value: true
+     - label: "No"
+       value: false
+     
+
+- display: Delete
+  input:
+  - reason
+  action: /restmachine/cloudapi/disks/deleteType
+  data:
+   id: $$id
+  input:
+  - reason
+}}
+
+
+|*Id*| ${id}|
+|*Description*| ${description}|
+|*Vpool*| ${vpool}|
+|*Cache Ratio*| ${cacheratio}|
+|*Snapshotable*| ${snapshotable}|
+
+{% else %}
+Disk Type not found
+{% endif %}

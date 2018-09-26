@@ -90,3 +90,47 @@
         var:reason str,, reason for deleting the disks
         var:permanently bool,False, whether to completly delete the disks, works only with non attached disks @optional
         result:bool, True if disks are deleted
+
+    method:addType
+        """
+        Add DiskType
+        """
+        var:id str,, DiskType ID
+        var:description str,, description of the type
+        var:vpool str,, to which vpool this disktype belongs @optional
+        var:cacheratio int,, Disk cache ratio @optional
+        var:snapshotable bool,False,
+        result:bool
+
+    method: updateType
+        """
+        UpdateType
+        """
+        var:id str,, DiskType ID
+        var:description str,, description of the type @optional
+        var:vpool str,, to which vpool this disktype belongs @optional
+        var:cacheratio int,, Disk cache ratio @optional
+        var:snapshotable str,, @optional
+        result:bool
+
+    method:deleteTypes
+        """
+        Delete multiple disk types permanently
+        """
+        var:typeIds list(str),, list of disk type ids to delete
+        var:reason str,, reason for deletion
+        result:bool, True if disks types are deleted
+
+    method:deleteType
+        """
+        Delete multiple disk types permanently
+        """
+        var:id list(str),, list of disk type ids to delete
+        var:reason str,, reason for deletion
+        result:bool, True if disks types are deleted
+
+    method: listTypes
+        """
+        list Disk listTypes
+        """
+        result:list, list with every element containing details of a disk type as a dict

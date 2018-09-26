@@ -871,7 +871,7 @@ class Machine(object):
             for volume in volumes:
                 if not volume.id:
                     vol = spaceprovider.create_volume(
-                        volume.size, volume.name, data=True, dev=volume.dev
+                        volume.size, volume.name, vpool="data", type="D", dev=volume.dev
                     )
                     volume.id = vol.id
                     createdvolumes.append(vol)

@@ -3,6 +3,7 @@ Accounts:/cbgrid/accounts
 Cloud Spaces:/cbgrid/Cloud Spaces
 Locations:/cbgrid/locations
 Images:/cbgrid/images
+Disk Types:/cbgrid/Disk Types
 External Networks:/cbgrid/External Networks
 Private Networks:/cbgrid/private networks
 Users:/cbgrid/users

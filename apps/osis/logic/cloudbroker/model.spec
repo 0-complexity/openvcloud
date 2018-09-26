@@ -90,6 +90,15 @@
     prop:url str,, url used to get/update the image
     prop:lastModified int,, last modified timestamp of the downloaded image
 
+[rootmodel:DiskType] @dbtype:osis
+    """
+    """
+    prop:id str,,
+    prop:description str,, extra description of the type
+    prop:vpool str,, which vpool this disktype relates to
+    prop:cacheratio int,, disk cache ratio
+    prop:snapshotable bool,, Does this disk type snapshotable?
+
 [rootmodel:Stack] @dbtype:osis
     """
     """

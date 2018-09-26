@@ -260,7 +260,7 @@ class cloudbroker_image(BaseActor):
         try:
             image.id = self.models.image.set(image)[0]
             volume = provider.create_volume(
-                gbsize, "templates/image_{}".format(image.id), data=False
+                gbsize, "templates/image_{}".format(image.id), vpool="vmstor", type='C'
             )
             self.models.image.updateSearch(
                 {"id": image.id}, {"$set": {"referenceId": volume.vdiskguid}}
@@ -336,7 +336,7 @@ class cloudbroker_image(BaseActor):
         volume = None
         try:
             volume = provider.create_volume(
-                gbsize, "rescuedisk/disk_{}".format(disk.id), data=False
+                gbsize, "rescuedisk/disk_{}".format(disk.id), vpool="vmstor", type='C'
             )
             self.models.disk.updateSearch(
                 {"id": disk.id}, {"$set": {"referenceId": volume.id}}
