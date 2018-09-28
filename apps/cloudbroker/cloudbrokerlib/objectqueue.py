@@ -11,10 +11,16 @@ class ObjectQueue(object):
 
     Eg queue a method for a vm object with id 4, retry 3 times before failing, and do not block
     oq = ObjectQueue() # Can also use the ObjectQueue.get_instance() method.
-    oq.queue("vm", 4, 3, False, my_method, my_method_arg, my_method_kwarg="moehaha")
+    oq.queue("vm", 4, 3, my_method, my_method_arg, my_method_kwarg="moehaha")
 
     Eg queue a method for a vm object with id 4, retry 3 times before failing, and block to get the result
-    my_method_result =  oq.queue("vm", 4, 3, True, my_method, my_method_arg, my_method_kwarg="moehaha")
+    future = oq.queue("vm", 4, 3, my_method, my_method_arg, my_method_kwarg="moehaha")
+    future.get_result() # This method raises if an exception would be thrown in my_method
+
+    Eg queue a method for a vm object with id 4, retry 3 times before failing, and chain another method, then get the final result
+    future = oq.queue("vm", 4, 3, my_method, my_method_arg, my_method_kwarg="moehaha")
+    future2 = future.chain("vm", 4, 3, my_other_method, my_method_arg, my_method_kwarg="moehaha")
+    future2.get_result() # This method raises if an exception would be thrown in my_method or my_other_method
 
     Eg stop the queue for a specific object, because it was deleted
     oq.stop("vm", 4)
