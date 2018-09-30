@@ -42,6 +42,9 @@ class Gateway(object):
         self.connection = LibvirtUtil()
         self.networkutil = Network(self.connection)
 
+    def namespace_exists(self):
+        return self.name in utils.get_all_namespaces()
+
     def _create_network_namespace(self):
         netinfo = [{"id": self.networkid, "type": "vxlan"}]
         with NetworkTool(netinfo, self.connection):
@@ -64,13 +67,13 @@ class Gateway(object):
 
     def start(self):
         if self.is_running():
-            self.destroy()
             self.apply_firewall_rules()
             self.update_leases()
             self.update_proxies()
             self.update_cloud_init()
             return
         try:
+            self.destroy()
             self._create_network_namespace()
             self._prepare_bundle("dnsmasq")
             self.install_service("dnsmasq")
@@ -148,6 +151,10 @@ class Gateway(object):
     def start_service(self, service):
         servicename = "{}-{}".format(self.name, service)
         j.system.platform.ubuntu.restartService(servicename)
+
+    def service_status(self, service):
+        servicename = "{}-{}".format(self.name, service)
+        return j.system.platform.ubuntu.statusService(servicename)
 
     def install_service(self, service):
         servicename = "{}-{}".format(self.name, service)

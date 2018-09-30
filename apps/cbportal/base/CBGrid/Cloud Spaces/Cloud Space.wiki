@@ -194,7 +194,9 @@ h3. Details
 |*Cloud Space ID*|$$id|
 |*Account*|[${accountname}|account?id=${accountId}]|
 |*Network ID*|[${networkId}|private network?id=${networkId}&gid=${gid}]|
+{% if type == 'routeros' -%}
 |*Defense Shield*| {{defenseshield: cloudspaceId:$$id}} |
+{% endif -%}
 |*End User Portal*| [View Cloud Space|/g8vdc/#/list?cloudspaceId=${id}] |
 |*Status*|${status}|
 |*Creation Time*|{{ts: ${creationTime}}}|
