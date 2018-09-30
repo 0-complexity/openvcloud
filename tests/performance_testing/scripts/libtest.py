@@ -128,19 +128,18 @@ def execute_async_ovc(ovc, api, **kwargs):
     return gevent.spawn(_run)
 
 
-def mount_disks(ovc, concurrency, options, machine_id, publicip, publicport, mountpoint="/mnt/vdb"):
+def mount_disks(ovc, concurrency, options, machine_id, publicip, publicport):
     # only one data disk for this test
     machine = safe_get_vm(ovc, concurrency, machine_id)
     account = machine["accounts"][0]
     templ = 'sshpass -p "{0}" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p {1} {2}@{3} '
-    templ += " bash mount_disks.sh {0} b {4} {5}"
+    templ += " bash mount_disks.sh {0} b {4}"
     cmd = templ.format(
         account["password"],
         publicport,
         account["login"],
         publicip,
         options.type,
-        mountpoint,
     )
     print("mounting disks for machine:%s" % machine_id)
     run_cmd_via_gevent(cmd)

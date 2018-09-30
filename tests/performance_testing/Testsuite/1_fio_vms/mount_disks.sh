@@ -1,22 +1,30 @@
 #!/bin/bash
+set -e
 password=$1
 disk=$2
 type=$3
-mountpoint=$4
-pids=()
-length=$(ps -ef | grep vd$disk | awk '{print $2}' | wc -l)
-for pid in $(ps -ef | grep vd$disk | awk '{print $2}'); do pids+=($pid); done
-for ((i=0;i<$length;i++)); do echo $password | sudo -S  kill -9 ${pids[i]}; done
-sleep 1
+oldmount=$(mount | grep -E "vdb|vdb1" | awk '{print $1}')
+if [ -z $oldmount ]
+then
+echo $password |sudo -S  dd if=/dev/zero of=/dev/vd$disk bs=512 count=1000
+else
+echo $password | sudo -S umount -l $oldmount
+
+fi 
 if [ $type == filesystem ]
 then
-    echo $password | sudo -S umount -l /dev/vd$disk
-    echo $password | sudo -S mkfs.ext4 /dev/vd$disk
-    echo $password | sudo -S mkdir -p /mnt/vd$disk
-    echo $password | sudo -S mount /dev/vd$disk /mnt/vd$disk -o noatime
+    echo $password | sudo -S parted -s /dev/vd$disk mklabel gpt
+    echo $password | sudo -S parted -s /dev/vd$disk mkpart pftest  0% 100%
+    echo $password | sudo -S mkfs.ext4 -F  /dev/vd$disk$((1))
+if  [ ! -d /mnt/vd$disk$((1)) ] 
+then
+    echo $password | sudo -S mkdir -p /mnt/vd$disk$((1))
+    echo $password | sudo -S mount /dev/vd$disk$((1)) /mnt/vd$disk$((1)) -o noatime
 else
-    if [ $(mount | grep -c /mnt/vdb) == 1 ]
-    then
-        echo $password | sudo -S umount -l /dev/vd$disk;
-    fi
+echo $password | sudo -S mount /dev/vd$disk$((1)) /mnt/vd$disk$((1)) -o noatime
+fi
+else
+
+exit
+
 fi
