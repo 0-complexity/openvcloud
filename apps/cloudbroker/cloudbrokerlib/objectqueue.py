@@ -64,7 +64,7 @@ class ObjectQueue(object):
                 raise ValueError("retry_count argument should be an integer")
             if retry_count <= 0:
                 raise ValueError("retry_count can not be less or equal to zero")
-            if not (inspect.isfunction(method) or inspect.ismethod(method)):
+            if not callable(method):
                 raise ValueError("method should be a method or function reference")
             self._listeners = list()
             self._result = None
