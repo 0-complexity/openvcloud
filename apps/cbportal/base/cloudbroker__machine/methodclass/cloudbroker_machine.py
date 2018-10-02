@@ -84,7 +84,7 @@ class cloudbroker_machine(BaseActor):
             sizeId = None
         cloudspace = self.models.cloudspace.get(cloudspaceId)
         with self.models.account.lock(cloudspace.accountId):
-            machine, auth, volumes, cloudspace = j.apps.cloudapi.machines._prepare_machine(
+            machine, cloudspace, image = j.apps.cloudapi.machines._prepare_machine(
                 cloudspaceId,
                 name,
                 description,
@@ -96,16 +96,18 @@ class cloudbroker_machine(BaseActor):
                 memory,
                 userdata,
             )
-        machineId = self.cb.machine.create(
-            machine, auth, cloudspace, volumes, imageId, stackid, userdata
+
+        self.cb.machine.deploy_disks(
+            cloudspace, machine, disksize, datadisks, image
         )
+        j.apps.cloudapi.machines.start(machine.id)
         gevent.spawn(
             self.cb.cloudspace.update_firewall,
             cloudspace,
             ctx=j.core.portal.active.requestContext,
         )
-        kwargs["ctx"].env["tags"] += " machineId:{}".format(machineId)
-        return machineId
+        kwargs["ctx"].env["tags"] += " machineId:{}".format(machine.id)
+        return machine.id
 
     def _validateMachineRequest(self, machineId):
         machineId = int(machineId)

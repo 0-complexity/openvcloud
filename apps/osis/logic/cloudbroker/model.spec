@@ -31,6 +31,7 @@
     prop:vcpus int,, the number of vcpus available to this machine 
     prop:type str,,Type of machine @index
     prop:tags str,, A tags string @index
+    prop:userdata str,,Extra userdata of the vm
 
 [model:VMAccount] @dbtype:osis
     """

@@ -54,7 +54,7 @@ class cloudapi_disks(BaseActor):
         dtype = self.models.disktype.get(type)
         provider = provider = self.cb.getProviderByGID(gid)
         block_size = provider.get_vpool_blocksize(dtype.vpool)
-        return int((512 * block_size) / (dtype.cacheratio/100.0))
+        return int((512 * block_size) / (dtype.cacheratio / 100.0))
 
     @authenticator.auth(acl={"account": set("C")})
     def create(
@@ -89,10 +89,10 @@ class cloudapi_disks(BaseActor):
             j.apps.cloudapi.accounts.checkAvailableMachineResources(
                 accountId, vdisksize=size
             )
-            disk, _ = self._create(accountId, gid, name, description, size, type, iops)
+            disk, _ = self.create_disk(accountId, gid, name, description, size, type, iops)
             return disk.id
-    
-    def _create(
+
+    def create_disk(
         self,
         accountId,
         gid,
@@ -104,23 +104,46 @@ class cloudapi_disks(BaseActor):
         physicalSource=None,
         nid=None,
         order=None,
+        imageId=None,
+        cloudinitdata=None,
         **kwargs
-    ):  
-        max_size = self.get_max_size(gid, type) 
-        if size >  max_size and type != "P":
-            raise exceptions.BadRequest("Disk size can not be bigger than {} GB".format(max_size))
+    ):
+        max_size = self.get_max_size(gid, type)
+        if size > max_size and type != "P":
+            raise exceptions.BadRequest(
+                "Disk size can not be bigger than {} GB".format(max_size)
+            )
         if type == "P" and not (physicalSource and nid):
             raise exceptions.BadRequest(
                 "Need to specify both node id and physical source for disk of type 'P'"
             )
-        types = self.models.disktype.search({'id': type})[1:]
+
+        image = None
+        if imageId:
+            if type != "B":
+                raise exceptions.BadRequest(
+                    "Can only create disk based on template for a Boot disk"
+                )
+            imaged = self.models.image.searchOne({"id": imageId})
+            if not imaged:
+                raise exceptions.BadRequest(
+                    "Could not find image with id {}".format(imageId)
+                )
+            image = self.models.image.new()
+            image.load(imaged)
+            if image.accountId and image.accountId != accountId:
+                raise exceptions.BadRequest(
+                    "Image does not belong to account {}".format(accountId)
+                )
+
+        types = self.models.disktype.search({"id": type})[1:]
         if not types:
             raise exceptions.BadRequest("Disk type not found")
 
         disk = self.models.disk.new()
         disk.name = name
         disk.descr = description
-        disk.sizeMax = size
+        disk.sizeMax = int(size)
         disk.type = type
         disk.gid = gid
         disk.order = order
@@ -137,8 +160,17 @@ class cloudapi_disks(BaseActor):
                 )
                 disk.referenceId = volumeid
                 volume = self.getStorageVolume(disk, provider)
+            elif type == "B" and imageId:
+                volume, edgeclient = provider.create_disk(name, size, image)
+                volume.edgeclient = edgeclient
+                disk.referenceId = volume.id
+            elif type == "M":
+                volume = provider.create_metadata_iso(**cloudinitdata)
+                disk.referenceId = volume.id
             else:
-                volume = provider.create_volume(disk.sizeMax, disk.id, dtype.vpool, type)
+                volume = provider.create_volume(
+                    disk.sizeMax, disk.id, dtype.vpool, type
+                )
                 volume.iotune = disk.iotune
                 disk.referenceId = volume.id
             disk.status = resourcestatus.Disk.CREATED
@@ -332,7 +364,9 @@ class cloudapi_disks(BaseActor):
         disk = self.models.disk.get(diskId)
         max_size = self.get_max_size(disk.gid, disk.type)
         if size > max_size:
-            raise exceptions.BadRequest("Size can not be more than {}G".format(max_size))
+            raise exceptions.BadRequest(
+                "Size can not be more than {}G".format(max_size)
+            )
         if disk.type == "M":
             raise exceptions.BadRequest("Can't resize a disk of type Meta")
         if disk.sizeMax >= size:
@@ -394,17 +428,19 @@ class cloudapi_disks(BaseActor):
         for diskId in diskIds:
             self.delete(diskId, False, permanently, reason=reason)
         return True
-    
+
     @authenticator.auth(groups=["level1", "level2", "level3"])
-    def addType(self, id, description, vpool=None, cacheratio=None, snapshotable=True, **kwargs):
+    def addType(
+        self, id, description, vpool=None, cacheratio=None, snapshotable=True, **kwargs
+    ):
         if cacheratio <= 0 and vpool:
-            raise exceptions.BadRequest(
-                "Cache Ratio must be larger than Zero"
-            )
-        dtype = self.models.disktype.searchOne({'id': id})
+            raise exceptions.BadRequest("Cache Ratio must be larger than Zero")
+        dtype = self.models.disktype.searchOne({"id": id})
         if dtype:
             raise exceptions.BadRequest(
-                "Disk type with id: {} already exits, Please choose other name".format(id)
+                "Disk type with id: {} already exits, Please choose other name".format(
+                    id
+                )
             )
         disk_type = self.models.disktype.new()
         disk_type.id = id
@@ -416,17 +452,21 @@ class cloudapi_disks(BaseActor):
         return True
 
     @authenticator.auth()
-    def updateType(self, id, description=None, vpool=None, cacheratio=None, snapshotable=None, **kwargs):
-        dtype = self.models.disktype.searchOne({'id': id})
+    def updateType(
+        self,
+        id,
+        description=None,
+        vpool=None,
+        cacheratio=None,
+        snapshotable=None,
+        **kwargs
+    ):
+        dtype = self.models.disktype.searchOne({"id": id})
         if not dtype:
-            raise exceptions.BadRequest(
-                "Can not find Disk Type with id: {}".format(id)
-            )
-        
-        if cacheratio <= 0 and (dtype['vpool'] or vpool):
-            raise exceptions.BadRequest(
-                "Cache Ratio must be larger than Zero"
-            )
+            raise exceptions.BadRequest("Can not find Disk Type with id: {}".format(id))
+
+        if cacheratio <= 0 and (dtype["vpool"] or vpool):
+            raise exceptions.BadRequest("Cache Ratio must be larger than Zero")
         update = {}
         if description:
             update["description"] = description
@@ -442,13 +482,12 @@ class cloudapi_disks(BaseActor):
         if update:
             self.models.disktype.updateSearch({"id": id}, {"$set": update})
 
-
     @authenticator.auth(groups=["level1", "level2", "level3"])
     def deleteTypes(self, typeIds, **kwargs):
         if not isinstance(typeIds, list):
             typeIds = [typeIds]
         for typeId in typeIds:
-            dtype = self.models.disktype.searchOne({'id': typeId})
+            dtype = self.models.disktype.searchOne({"id": typeId})
             if not dtype:
                 raise exceptions.BadRequest(
                     "Can not find Disk Type with id: {}".format(typeId)
@@ -459,11 +498,9 @@ class cloudapi_disks(BaseActor):
 
     @authenticator.auth(groups=["level1", "level2", "level3"])
     def deleteType(self, id, **kwargs):
-        dtype = self.models.disktype.searchOne({'id': id})
+        dtype = self.models.disktype.searchOne({"id": id})
         if not dtype:
-            raise exceptions.BadRequest(
-                "Can not find Disk Type with id: {}".format(id)
-            )
+            raise exceptions.BadRequest("Can not find Disk Type with id: {}".format(id))
         self.models.disktype.delete(id)
         return True
 
@@ -473,5 +510,4 @@ class cloudapi_disks(BaseActor):
         """
         types = self.models.disktype.search({})
         return types
-
 

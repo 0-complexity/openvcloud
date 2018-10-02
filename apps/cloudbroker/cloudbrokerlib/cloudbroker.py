@@ -20,6 +20,7 @@ import string
 import yaml
 import re
 import netaddr
+import uuid
 
 DEFAULTIOPS = 2000
 
@@ -498,7 +499,7 @@ class CloudBroker(object):
 class CloudSpace(object):
     def __init__(self, cb):
         self.cb = cb
-        self.network = network.Network(models)
+        self.network = network.Network(db)
 
     def release_resources(self, cloudspace, releasenetwork=True):
         #  delete routeros
@@ -565,7 +566,7 @@ class CloudSpace(object):
                     else:
                         continue
                     userdata, metadata = self.cb.machine.get_user_meta_data(
-                        vm["name"], password, image["type"]
+                        vm["name"], password, image["type"], vm.get("userdata")
                     )
                     vmdata = {
                         "mac": nic["macAddress"],
@@ -667,6 +668,7 @@ class Machine(object):
                     maxvms
                 )
             )
+        return image
 
     def assertName(self, cloudspaceId, name):
         if not name or not name.strip():
@@ -727,7 +729,7 @@ class Machine(object):
         customuserdata = userdata or {}
         if isinstance(customuserdata, basestring):
             customuserdata = yaml.load(customuserdata)
-        hostname = re.sub("[^\w\d\-_]", "", name)[:63] or 'vm'
+        hostname = re.sub("[^\w\d\-_]", "", name)[:63] or "vm"
         if type not in ["WINDOWS", "Windows"]:
             memrule = 'SUBSYSTEM=="memory", ACTION=="add", TEST=="state", ATTR{state}=="offline", ATTR{state}="online"'
             cpurule = 'SUBSYSTEM=="cpu", ACTION=="add", TEST=="online", ATTR{online}=="0", ATTR{online}="1"'
@@ -766,19 +768,75 @@ class Machine(object):
             metadata = {"admin_pass": defaultuserpassword, "hostname": hostname}
         return userdata, metadata
 
-    def createModel(
-        self,
-        name,
-        description,
-        cloudspace,
-        imageId,
-        sizeId,
-        disksize,
-        datadisks,
-        vcpus,
-        memory,
-    ):
+    def deploy_disks(self, cloudspace, machine, disksize, datadisks, image):
         datadisks = datadisks or []
+        vmid = "vm-{}".format(machine.id)
+        disk, volume = j.apps.cloudapi.disks.create_disk(
+            cloudspace.accountId,
+            cloudspace.gid,
+            vmid,
+            "Boot Disk",
+            size=disksize,
+            type="B",
+            iops=DEFAULTIOPS,
+            imageId=image.id,
+            order=0,
+        )
+        models.vmachine.updateSearch(
+            {"id": machine.id}, {"$addToSet": {"disks": disk.id}}
+        )
+        diskoffset = 1
+        if cloudspace.type == "routeros":
+            password = None
+            for account in machine.accounts:
+                password = account.password
+                break
+            if password:
+                diskoffset = 2
+                userdata, metadata = self.get_user_meta_data(
+                    machine.name, password, image.type, machine.userdata
+                )
+                cloudinitdata = {
+                    "userdata": userdata,
+                    "metadata": metadata,
+                    "edgeclient": volume.edgeclient,
+                    "name": vmid,
+                }
+                disk, _ = j.apps.cloudapi.disks.create_disk(
+                    cloudspace.accountId,
+                    cloudspace.gid,
+                    "Metadata ISO",
+                    "Metadata ISO",
+                    size=0.1,
+                    type="M",
+                    iops=DEFAULTIOPS,
+                    order=1,
+                    cloudinitdata=cloudinitdata,
+                )
+                models.vmachine.updateSearch(
+                    {"id": machine.id}, {"$addToSet": {"disks": disk.id}}
+                )
+
+            # create metadata
+        for order, datadisk in enumerate(datadisks):
+            order += diskoffset
+            disk, _ = j.apps.cloudapi.disks.create_disk(
+                cloudspace.accountId,
+                cloudspace.gid,
+                "Data Disk {}".format(order),
+                "Data Disk {}".format(order),
+                size=datadisk,
+                type="D",
+                iops=DEFAULTIOPS,
+                order=order,
+            )
+            models.vmachine.updateSearch(
+                {"id": machine.id}, {"$addToSet": {"disks": disk.id}}
+            )
+
+    def createModel(
+        self, name, description, cloudspace, imageId, sizeId, vcpus, memory, userdata
+    ):
         image = models.image.get(imageId)
         machine = models.vmachine.new()
         if sizeId:
@@ -795,27 +853,9 @@ class Machine(object):
         machine.creationTime = int(time.time())
         machine.updateTime = int(time.time())
         machine.type = "VIRTUAL"
-
-        def addDisk(order, size, type, name=None):
-            disk = models.disk.new()
-            disk.name = name or "Disk nr %s" % order
-            disk.descr = "Machine disk of type %s" % type
-            disk.sizeMax = size
-            disk.iotune = {"total_iops_sec": DEFAULTIOPS}
-            disk.accountId = cloudspace.accountId
-            disk.gid = cloudspace.gid
-            disk.order = order
-            disk.type = type
-            disk.status = resourcestatus.Disk.MODELED
-            disk.id = models.disk.set(disk)[0]
-            machine.disks.append(disk.id)
-            return disk
-
-        addDisk(0, disksize, "B", "Boot disk")
-        volumes = []
-        for order, datadisksize in enumerate(datadisks):
-            disk = addDisk(order + 1, int(datadisksize), "D")
-            volumes.append(j.apps.cloudapi.disks.getStorageVolume(disk, None))
+        machine.status = resourcestatus.Machine.VIRTUAL
+        machine.userdata = userdata
+        machine.referenceId = str(uuid.uuid4())
 
         account = machine.new_account()
         if hasattr(image, "username") and image.username:
@@ -844,188 +884,37 @@ class Machine(object):
                 + random.choice(letters[1])
             )
             account.password = passwd
-        auth = NodeAuthPassword(account.password)
         with models.cloudspace.lock("{}_ip".format(cloudspace.id)):
             nic = machine.new_nic()
             nic.type = "bridge"
+            nic.deviceName = "spc-{:04x}".format(cloudspace.networkId)
             nic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
+            nic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(
+                cloudspace.gid
+            )
             machine.id = models.vmachine.set(machine)[0]
-        return machine, auth, volumes
+        return machine
 
-    def updateMachineFromNode(self, machine, node, stack):
-        cloudspace = models.cloudspace.get(machine.cloudspaceId)
-        machine.referenceId = node.id
-        machine.stackId = stack.id
-        machine.status = resourcestatus.Machine.RUNNING
-        machine.hostName = node.name
-        if "ifaces" in node.extra:
-            for iface in node.extra["ifaces"]:
-                for nic in machine.nics:
-                    if nic.macAddress == iface.mac:
-                        break
-                    if not nic.macAddress:
-                        nic.macAddress = iface.mac
-                        nic.deviceName = iface.target
-                        nic.type = iface.type
-                        break
-                else:
-                    nic = machine.new_nic()
-                    nic.macAddress = iface.mac
-                    nic.deviceName = iface.target
-                    nic.type = iface.type
-                    nic.ipAddress = "Undefined"
-        else:
-            for ipaddress in node.public_ips:
-                nic = machine.new_nic()
-                nic.ipAddress = ipaddress
-        machine.updateTime = int(time.time())
-
+    def update_volumes(self, machine, volumes):
         # filter out iso volumes
-        volumes = filter(lambda v: v.type == "disk", node.extra["volumes"])
+        disks = filter(lambda v: v.type == "disk", volumes)
         bootdisk = None
         for order, diskid in enumerate(machine.disks):
             disk = models.disk.get(diskid)
-            disk.stackId = stack.id
-            disk.referenceId = volumes[order].id
+            disk.stackId = machine.stackId
+            disk.referenceId = disks[order].id
             models.disk.set(disk)
             if disk.type == "B":
                 bootdisk = disk
 
-        cdroms = filter(lambda v: v.type == "cdrom", node.extra["volumes"])
+        cdroms = filter(lambda v: v.type == "cdrom", volumes)
         for cdrom in cdroms:
             disk = models.disk.new()
             disk.name = "Metadata iso"
             disk.type = "M"
-            disk.stackId = stack.id
+            disk.stackId = machine.stackId
             disk.accountId = bootdisk.accountId
             disk.gid = bootdisk.gid
             disk.referenceId = cdrom.id
             diskid = models.disk.set(disk)[0]
             machine.disks.append(diskid)
-
-        with models.cloudspace.lock("{}_ip".format(cloudspace.id)):
-            for nic in machine.nics:
-                if nic.type == "bridge" and nic.ipAddress == "Undefined":
-                    nic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(
-                        cloudspace
-                    )
-            models.vmachine.set(machine)
-
-    def create(
-        self, machine, auth, cloudspace, volumes, imageId, stackId, userdata=None
-    ):
-        excludelist = []
-        name = "vm-%s" % machine.id
-        newstackId = stackId
-        image = models.image.get(imageId)
-        boottype = image.bootType or "bios"
-        firstdisk = models.disk.get(machine.disks[0])
-        spaceprovider = self.cb.getProviderByGID(cloudspace.gid)
-        createdvolumes = []
-        try:
-            bootvolume, edgeclient = spaceprovider._create_disk(
-                name, firstdisk.sizeMax, image
-            )
-            bootvolume.dev = "vda"
-            bootvolume.iotune = firstdisk.iotune
-            volumes.insert(0, bootvolume)
-            createdvolumes.append(bootvolume)
-            if cloudspace.type == "routeros":
-                userdata, metadata = self.get_user_meta_data(
-                    name, auth.password, image.type, userdata
-                )
-                metavolume = spaceprovider._create_metadata_iso(
-                    edgeclient, name, userdata, metadata
-                )
-                createdvolumes.append(metavolume)
-                volumes.insert(1, metavolume)
-            for volume in volumes:
-                if not volume.id:
-                    vol = spaceprovider.create_volume(
-                        volume.size, volume.name, vpool="data", type="D", dev=volume.dev
-                    )
-                    volume.id = vol.id
-                    createdvolumes.append(vol)
-                volume.iotune = firstdisk.iotune
-        except StorageException as e:
-            eco = j.errorconditionhandler.processPythonExceptionObject(e)
-            self.cleanup(machine, cloudspace.gid, createdvolumes)
-            raise exceptions.ServiceUnavailable(
-                "Not enough resources available to create disks"
-            )
-        except:
-            self.cleanup(machine, cloudspace.gid, createdvolumes)
-            raise
-
-        models.disk.updateSearch(
-            {"id": {"$in": machine.disks}}, {"$set": {"status": "CREATED"}}
-        )
-
-        size = {"memory": machine.memory, "vcpus": machine.vcpus}
-
-        def getStackAndProvider(newstackId):
-            provider = None
-            try:
-                if not newstackId:
-                    stack = self.cb.getBestStack(
-                        cloudspace.gid, imageId, excludelist, machine.memory
-                    )
-                    if stack == -1:
-                        raise exceptions.ServiceUnavailable(
-                            "Not enough resources available to provision the requested machine"
-                        )
-                    provider = self.cb.getProviderByStackId(stack["id"])
-                else:
-                    activesessions = self.cb.getActiveSessionsKeys()
-                    provider = self.cb.getProviderByStackId(newstackId)
-                    if (provider.gid, provider.id) not in activesessions:
-                        raise exceptions.ServiceUnavailable(
-                            "Not enough resources available to provision the requested machine"
-                        )
-            except:
-                self.cleanup(machine, cloudspace.gid, volumes)
-                raise
-            return provider
-
-        node = -1
-        while node == -1:
-            provider = getStackAndProvider(newstackId)
-            if not image:
-                self.cleanup(machine, cloudspace.gid, volumes)
-                raise exceptions.BadRequest("Image is not available on requested stack")
-
-            try:
-                node = provider.init_node(
-                    name,
-                    size,
-                    cloudspace.networkId,
-                    volumes,
-                    image.type,
-                    boottype,
-                    machineId=machine.id,
-                )
-            except NotEnoughResources as e:
-                volumes = e.volumes
-                if stackId:
-                    self.cleanup(machine, cloudspace.gid, volumes)
-                    raise exceptions.ServiceUnavailable(
-                        "Not enough resources available to provision the requested machine"
-                    )
-                else:
-                    newstackId = 0
-                    excludelist.append(provider.stack.id)
-            except exceptions.ServiceUnavailable:
-                self.cleanup(machine, cloudspace.gid, volumes)
-                raise
-            except Exception as e:
-                eco = j.errorconditionhandler.processPythonExceptionObject(e)
-                self.cb.markProvider(provider.stack, eco)
-                newstackId = 0
-                machine.status = resourcestatus.Machine.ERROR
-                models.vmachine.set(machine)
-        self.cb.clearProvider(provider.stack)
-        self.updateMachineFromNode(machine, node, provider.stack)
-        models.disk.updateSearch(
-            {"id": {"$in": machine.disks}}, {"$set": {"status": "ASSIGNED"}}
-        )
-        return machine.id

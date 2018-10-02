@@ -10,6 +10,7 @@ import requests
 import gevent
 import urlparse
 import math
+import uuid
 from datetime import datetime
 
 
@@ -63,7 +64,7 @@ class cloudapi_machines(BaseActor):
                 machine = self.models.vmachine.get(machineId)
             if machine.type != "VIRTUAL":
                 raise exceptions.BadRequest(
-                    "Action %s is not support on machine %s" % (actiontype, machineId)
+                    "Action %s is not supported on machine %s" % (actiontype, machineId)
                 )
             if node.extra.get("locked", False):
                 raise exceptions.Conflict("Can not %s a locked Machine" % actiontype)
@@ -74,7 +75,7 @@ class cloudapi_machines(BaseActor):
                 method = getattr(provider, "ex_%s" % actionname.lower(), None)
                 if not method:
                     raise exceptions.BadRequest(
-                        "Action %s is not support on machine %s"
+                        "Action %s is not supported on machine %s"
                         % (actiontype, machineId)
                     )
             result = method(node, **kwargs)
@@ -380,7 +381,7 @@ class cloudapi_machines(BaseActor):
                 image.size,
                 "templates/{}_{}".format(machineId, templateName),
                 vpool="vmstor",
-                type="C"
+                type="C",
             )
             image_path = provider.ex_create_template(
                 node, templateName, volume.vdiskguid
@@ -541,6 +542,8 @@ class cloudapi_machines(BaseActor):
             vm.creationTime = int(time.time())
             vm.updateTime = int(time.time())
             vm.type = "VIRTUAL"
+            vm.referenceId = str(uuid.uuid4())
+            vm.status = "HALTED"
 
             totaldisksize = 0
             bootdisk = None
@@ -559,6 +562,12 @@ class cloudapi_machines(BaseActor):
                 vm.disks.append(diskid)
                 diskobj["id"] = diskid
                 diskobj["path"] = "disk-%i.vmdk" % i
+
+            nic = vm.new_nic()
+            nic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
+            nic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(cloudspace.gid)
+            nic.deviceName = "spc-{:04x}".format(cloudspace.networkId)
+            nic.type = "bridge"
             # Validate that enough resources are available in the CU limits to clone the machine
             size = {"memory": memory, "vcpus": vcpus}
             j.apps.cloudapi.cloudspaces.checkAvailableMachineResources(
@@ -584,12 +593,11 @@ class cloudapi_machines(BaseActor):
             )
             try:
                 provider.ex_extend_disk(machine["disks"][0]["guid"], bootdisk.sizeMax)
-                node = provider.ex_import(
+                volumes = provider.ex_import(
                     size, vm.id, cloudspace.networkId, machine["disks"]
                 )
-                stack_model = self.models.stack.new()
-                stack_model.load(stack)
-                self.cb.machine.updateMachineFromNode(vm, node, stack_model)
+                self.cb.machine.update_volumes(vm, volumes)
+                self.start(vm.id)
             except:
                 self.cb.machine.cleanup(vm)
                 raise
@@ -926,7 +934,7 @@ class cloudapi_machines(BaseActor):
         """
         cloudspace = self.models.cloudspace.get(cloudspaceId)
         with self.models.account.lock(cloudspace.accountId):
-            machine, auth, volumes, cloudspace = self._prepare_machine(
+            machine, cloudspace, image = self._prepare_machine(
                 cloudspaceId,
                 name,
                 description,
@@ -939,16 +947,17 @@ class cloudapi_machines(BaseActor):
                 userdata,
             )
 
-        machineId = self.cb.machine.create(
-            machine, auth, cloudspace, volumes, imageId, None, userdata
+        self.cb.machine.deploy_disks(
+            cloudspace, machine, disksize, datadisks, image
         )
-        kwargs["ctx"].env["tags"] += " machineId:{}".format(machineId)
+        self.start(machine.Id)
+        kwargs["ctx"].env["tags"] += " machineId:{}".format(machine.id)
         gevent.spawn(
             self.cb.cloudspace.update_firewall,
             cloudspace,
             ctx=j.core.portal.active.requestContext,
         )
-        return machineId
+        return machine.id
 
     def _prepare_machine(
         self,
@@ -978,7 +987,7 @@ class cloudapi_machines(BaseActor):
             )
         datadisks = datadisks or []
         cloudspace = self.models.cloudspace.get(cloudspaceId)
-        self.cb.machine.validateCreate(
+        image = self.cb.machine.validateCreate(
             cloudspace, name, sizeId, imageId, disksize, datadisks, userdata
         )
         # Validate that enough resources are available in the CU limits to create the machine
@@ -994,18 +1003,17 @@ class cloudapi_machines(BaseActor):
         j.apps.cloudapi.cloudspaces.checkAvailableMachineResources(
             cloudspace.id, vcpus, memory / 1024.0, totaldisksize
         )
-        machine, auth, volumes = self.cb.machine.createModel(
+        machine = self.cb.machine.createModel(
             name,
             description,
             cloudspace,
             imageId,
             sizeId,
-            disksize,
-            datadisks,
             vcpus,
             memory,
+            userdata,
         )
-        return machine, auth, volumes, cloudspace
+        return machine, cloudspace, image
 
     @authenticator.auth(acl={"cloudspace": set("X")})
     def delete(self, machineId, permanently=False, **kwargs):
@@ -1490,6 +1498,8 @@ class cloudapi_machines(BaseActor):
         clone.acl = machine.acl
         clone.creationTime = int(time.time())
         clone.type = "VIRTUAL"
+        clone.status = "HALTED"
+        clone.referenceId = str(uuid.uuid4())
         password = "Unknown"
         for account in machine.accounts:
             newaccount = clone.new_account()
@@ -1529,6 +1539,14 @@ class cloudapi_machines(BaseActor):
                 disk_name = "volumes/volume_{}".format(clonediskId)
             diskmapping.append((volume, disk_name))
             totaldisksize += clonedisk.sizeMax
+        for nic in machine.nics:
+            if nic.type != "bridge":
+                continue
+            clonenic = clone.new_nic()
+            clonenic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
+            clonenic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(cloudspace.gid)
+            clonenic.deviceName = "spc-{:04x}".format(cloudspace.networkId)
+            clonenic.type = "bridge"
 
         clone.id = self.models.vmachine.set(clone)[0]
         if not snapshotname and not snapshottimestamp:
@@ -1543,22 +1561,13 @@ class cloudapi_machines(BaseActor):
                     disks_snapshots[snapshot["diskguid"]] = snapshot["guid"]
 
         try:
-            userdata, metadata = self.cb.machine.get_user_meta_data(clone.name, password, image.type)
-            node = provider.ex_clone(
-                userdata,
-                metadata,
-                image.type,
-                {"memory": machine.memory, "vcpus": machine.vcpus},
-                clone.id,
-                cloudspace.networkId,
-                diskmapping,
-                disks_snapshots,
+            userdata, metadata = self.cb.machine.get_user_meta_data(
+                clone.name, password, image.type
             )
-            if node == -1:
-                raise exceptions.ServiceUnavailable(
-                    "Not enough resources available to host clone"
-                )
-            self.cb.machine.updateMachineFromNode(clone, node, provider.stack)
+            volumes = provider.ex_clone_disks(diskmapping, disks_snapshots or {})
+            self.cb.machine.update_volumes(clone, volumes)
+            self.models.vmachine.set(clone)
+            self.start(clone.id)
         except:
             self.cb.machine.cleanup(clone)
             raise
