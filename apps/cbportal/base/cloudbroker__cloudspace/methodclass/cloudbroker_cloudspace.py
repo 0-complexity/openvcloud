@@ -222,7 +222,7 @@ class cloudbroker_cloudspace(BaseActor):
             newcloudspace.accountId = accountId
             newcloudspace.location = location["locationCode"]
             newcloudspace.privatenetwork = str(netmgr.DEFAULTCIDR)
-            vfwobj.vlan = externalnetwork["vlan"]
+            vfwobj.external.vlan = externalnetwork["vlan"]
             newcloudspace.externalnetworkId = externalnetwork["id"]
 
             newcloudspace.status = resourcestatus.Cloudspace.MIGRATING

@@ -21,7 +21,7 @@ def action(fwobject):
 
     internalip = fwobject["host"]
     networkid = fwobject["id"]
-    vlan = fwobject["vlan"]
+    vlan = fwobject["external"]["vlan"]
     netinfo = [{"type": "vlan", "id": vlan}, {"type": "vxlan", "id": networkid}]
 
     def protect_interfaces(network, domain):
