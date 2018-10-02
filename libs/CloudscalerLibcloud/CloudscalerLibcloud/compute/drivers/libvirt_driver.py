@@ -13,7 +13,6 @@ import uuid
 import crypt
 import random
 import string
-import yaml
 import datetime
 import re
 
@@ -397,7 +396,7 @@ class CSLibvirtNodeDriver(object):
         else:
             return job
 
-    def _create_disk(self, vm_id, disksize, image, disk_role="base"):
+    def create_disk(self, vm_id, disksize, image, disk_role="base"):
         edgeclient = self.getNextEdgeClient("vmstor")
 
         diskname = "{0}/bootdisk-{0}".format(vm_id)
@@ -494,7 +493,7 @@ class CSLibvirtNodeDriver(object):
         )
         return node
 
-    def _create_metadata_iso(self, edgeclient, name, userdata, metadata):
+    def create_metadata_iso(self, edgeclient, name, userdata, metadata):
 
         diskpath = "{0}/cloud-init-{0}".format(name)
         dtype = self.ccl.disktype.get('M')
@@ -543,70 +542,6 @@ class CSLibvirtNodeDriver(object):
 
     def get_host_memory(self):
         return self.node.memory - self.config.get("reserved_mem")
-
-    def init_node(
-        self,
-        name,
-        size,
-        networkid=None,
-        volumes=None,
-        imagetype="",
-        boottype="bios",
-        machineId=None,
-    ):
-        volumes = volumes or []
-        macaddress = self.backendconnection.getMacAddress(self.gid)
-
-        networkname = "space_{:04x}".format(networkid)
-        nodeid = str(uuid.uuid4())
-        interfaces = [
-            NetworkInterface(
-                macaddress, "{}-{:04x}".format(name, networkid), "bridge", networkname
-            )
-        ]
-        netinfo = [{"id": networkid, "type": "vxlan"}]
-        extra = {
-            "volumes": volumes,
-            "ifaces": interfaces,
-            "imagetype": imagetype,
-            "size": size,
-            "bootdev": "hd",
-            "boottype": boottype,
-            "machineId": machineId,
-        }
-        node = Node(
-            id=nodeid,
-            name=name,
-            state=NodeState.PENDING,
-            public_ips=[],
-            private_ips=[],
-            driver=self,
-            extra=extra,
-        )
-        machinexml = self.get_xml(node)
-
-        # 0 means default behaviour, e.g machine is auto started.
-        result = self._execute_agent_job(
-            "createmachine",
-            queue="hypervisor",
-            machinexml=machinexml,
-            vmlog_dir=vmlog_dir,
-            netinfo=netinfo,
-        )
-        if not result or result == -1:
-            # Agent is not registered to agentcontroller or we can't provision the
-            # machine(e.g not enough resources, delete machine)
-            if result == -1:
-                self._execute_agent_job(
-                    "deletemachine",
-                    queue="hypervisor",
-                    machineid=None,
-                    machinexml=machinexml,
-                )
-            raise NotEnoughResources("Failed to create machine", volumes)
-
-        node = self._from_agent_to_node(result, volumes=volumes)
-        return node
 
     def ex_create_template(self, node, name, new_vdiskguid):
         bootvolume = node.extra["volumes"][0]
@@ -889,9 +824,7 @@ class CSLibvirtNodeDriver(object):
             )
             volume.dev = "vd%s" % convertnumber(i + 1)
             volumes.append(volume)
-        return self.init_node(
-            name, size, networkid=networkid, volumes=volumes, machineId=vmid
-        )
+        return volumes
 
     def ex_clone_disks(self, diskmapping, disks_snapshots=None):
         disks_snapshots = disks_snapshots or {}
@@ -922,32 +855,6 @@ class CSLibvirtNodeDriver(object):
             volume.edgeclient = edgeclient
             volumes.append(volume)
         return volumes
-
-    def ex_clone(
-        self,
-        userdata,
-        metadata,
-        imagetype,
-        size,
-        vmid,
-        networkid,
-        diskmapping,
-        disks_snapshots=None,
-    ):
-        disks_snapshots = disks_snapshots or {}
-        name = "vm-%s" % vmid
-        volumes = self.ex_clone_disks(diskmapping, disks_snapshots)
-        volumes.append(
-            self._create_metadata_iso(volumes[0].edgeclient, name, userdata, metadata)
-        )
-        return self.init_node(
-            name,
-            size,
-            networkid=networkid,
-            volumes=volumes,
-            imagetype=imagetype,
-            machineId=vmid,
-        )
 
     def ex_extend_disk(self, diskguid, newsize, disk_info=None):
         if disk_info is None:

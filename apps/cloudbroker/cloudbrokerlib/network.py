@@ -3,27 +3,39 @@ from cloudbrokerlib import resourcestatus
 
 
 class Network(object):
-    def __init__(self, models):
-        self.models = models
+    def __init__(self, db):
+        self.db = db
 
     def getExternalIpAddress(self, gid, accountId, externalnetworkId=None):
         query = {"gid": gid, "accountId": {"$in": [accountId, 0]}}
         if externalnetworkId is not None:
             query["id"] = externalnetworkId
-        for pool in self.models.externalnetwork.search(query)[1:]:
+        for pool in self.db.cloudbroker.externalnetwork.search(query)[1:]:
             for ip in pool["ips"]:
                 res = self.models.externalnetwork.updateSearch(
                     {"id": pool["id"]}, {"$pull": {"ips": ip}}
                 )
                 if res["nModified"] == 1:
-                    pool = self.models.externalnetwork.get(pool["id"])
+                    pool = self.db.cloudbroker.externalnetwork.get(pool["id"])
                     return pool, netaddr.IPNetwork("%s/%s" % (ip, pool.subnetmask))
 
     def releaseExternalIpAddress(self, externalnetworkId, ip):
         net = netaddr.IPNetwork(ip)
-        self.models.externalnetwork.updateSearch(
+        self.db.cloudbroker.externalnetwork.updateSearch(
             {"id": externalnetworkId}, {"$addToSet": {"ips": str(net.ip)}}
         )
+
+    def getFreeMacAddress(self, gid, **kwargs):
+        """
+        Get a free macaddres in this libvirt environment
+        result
+        """
+        mac = self.db.libvirt.macaddress.set(key=gid, obj=1)
+        firstmac = netaddr.EUI("52:54:00:00:00:00")
+        newmac = int(firstmac) + mac
+        macaddr = netaddr.EUI(newmac)
+        macaddr.dialect = netaddr.mac_eui48
+        return str(macaddr).replace("-", ":").lower()
 
     def getFreeIPAddress(self, cloudspace):
         query = {
@@ -34,7 +46,7 @@ class Network(object):
             "$query": query,
             "$fields": ["nics.ipAddress", "nics.type", "nics.networkId"],
         }
-        machines = self.models.vmachine.search(q, size=0)[1:]
+        machines = self.db.cloudbroker.vmachine.search(q, size=0)[1:]
         network = netaddr.IPNetwork(cloudspace.privatenetwork)
         usedips = [
             netaddr.IPAddress(nic["ipAddress"])
