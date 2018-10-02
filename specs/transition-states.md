@@ -42,7 +42,8 @@ Prior to running any action on an OVC object we ensure that transition from the 
 |DEPLOYED| DISABLING*| DISABLED|
 |DISABLED| ENABLING* | DEPLOYED|
 |DEPLOYED / DISABLED|DELETING|DELETED|
-|DEPLOYED / DISABLED| DESTROYING| DESTROYED|
+|DELETED| DESTROYING| DESTROYED|
+|DELETED| RESTORING | DEPLOYED|
 
 Additional transition states
 

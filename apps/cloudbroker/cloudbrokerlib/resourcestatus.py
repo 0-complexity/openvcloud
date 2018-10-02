@@ -1,5 +1,3 @@
-from JumpScale.portal.portal import exceptions
-
 class Machine(object):
     """
     Define possible machine model status
@@ -14,14 +12,17 @@ class Machine(object):
     PAUSED = "PAUSED"
     RESUMING = "RESUMING"
     RUNNING = "RUNNING"
+
     DESTROYING = "DESTROYING"
     DELETING = "DELETING"
+    RESTORING = "RESTORING"
     DELETED = "DELETED"
     DESTROYED = "DESTROYED"
     ERROR = "ERROR"
     ADDING_DISK = "ADDING_DISK"
     ATTACHING_DISK = "ATTACHING_DISK"
     DETACHING_DISK = "DETACHING_DISK"
+
 
     INVALID_STATES = [DESTROYED, DELETED, ERROR, DESTROYING]
     NON_CONSUMING_STATES = [DESTROYED, DELETED, ERROR, HALTED]
@@ -38,16 +39,35 @@ class Machine(object):
 
 
 class Cloudspace(object):
+    # static states
     VIRTUAL = "VIRTUAL"
-    DEPLOYING = "DEPLOYING"
-    DESTROYED = "DESTROYED"
     DEPLOYED = "DEPLOYED"
-    DESTROYING = "DESTROYING"
-    MIGRATING = "MIGRATING"
+    DESTROYED = "DESTROYED"
     DISABLED = "DISABLED"
     DELETED = "DELETED"
-    INVALID_STATES = [DESTROYED, DELETED, DESTROYING]
 
+    # transition states
+    DEPLOYING = "DEPLOYING"
+    DISABLING = "DISABLING"
+    ENABLING = "ENABLING"
+    DELETING = "DELETING"
+    DESTROYING = "DESTROYING"
+    RESTORING = "RESTORING"
+
+    TRANSITION_STATES = [DEPLOYING, DISABLING, ENABLING, DELETING, DESTROYING, RESTORING]
+    INVALID_STATES = [DESTROYED, DELETED, DESTROYING, DELETING]
+    ALLOWED_TRANSITIONS = {
+        VIRTUAL: [DEPLOYING],
+        DEPLOYED: [DISABLING, DELETING],
+        DISABLED: [ENABLING, DELETING],
+        DELETED: [DESTROYING, RESTORING],
+        DESTROYED: [],
+        DEPLOYING: [DEPLOYED],
+        DISABLING: [DISABLED],
+        ENABLING: [DEPLOYED],
+        DELETING: [DELETED],
+        DESTROYING: [DESTROYED],
+    }
 
 class Account(object):
     DESTROYED = "DESTROYED"
@@ -77,24 +97,3 @@ class Image(object):
     DISABLED = "DISABLED"
     INVALID_STATES = [DESTROYED, DELETED]
 
-
-def updateStatus(model, object_id, status, new_status):
-    """ update status of an object in db
-        
-        :param model: collection to lock
-        :param object_id: id og the object
-        :param status: status that is expected
-        :param new_status: update status
-    """
-    with model.lock(object_id):
-        result = model.updateSearch(
-            {"id": object_id, "status": status}, {"$set": {"status": new_status}}
-        )
-        if result["nModified"] == 0:
-            raise exceptions.BadRequest(
-                "Other action currently happening on {} ID: {}".format(
-                    model.cat, object_id
-                )
-            )
-        if result["nModified"] > 1:
-            raise exceptions.BadRequest("More than one object was updated")
