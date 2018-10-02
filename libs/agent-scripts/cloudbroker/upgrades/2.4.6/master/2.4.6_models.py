@@ -23,15 +23,20 @@ def action():
             cloudspace = ccl.cloudspace.get(int(vfw["domain"]))
             extnetwork = ccl.externalnetwork.get(cloudspace.externalnetworkId)
             vfw.pop("ips", None)
+            if cloudspace.externalnetworkip:
+                ips = [cloudspace.externalnetworkip]
+            else:
+                ips = []
             external = {
                 "vlan": vfw.pop("vlan"),
-                "ips": [cloudspace.externalnetworkip],
+                "ips": ips,
                 "gateway": extnetwork.gateway,
             }
             vcl.virtualfirewall.updateSearch(
                 {"guid": vfw["guid"]},
                 {"$set": {"external": external}, "$unset": {"pubips": "", "vlan": ""}},
             )
+    ccl.cloudspace.updateSearch({'type': ''}, {'$set': {'type': 'routeros'}})
 
 
 if __name__ == "__main__":
