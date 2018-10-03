@@ -1,11 +1,14 @@
-from JumpScale import j
-from JumpScale.portal.portal import exceptions
-from cloudbrokerlib import authenticator, network, netmgr, resourcestatus
-from cloudbrokerlib.baseactor import BaseActor
 import netaddr
 import uuid
 import time
 import gevent
+from JumpScale import j
+from JumpScale.portal.portal import exceptions
+from cloudbrokerlib import authenticator, network, netmgr, resourcestatus
+from cloudbrokerlib.baseactor import BaseActor
+from cloudbrokerlib.objectqueue import ObjectQueue
+from cloudbrokerlib.statushandler import StatusHandler
+
 
 
 def getIP(network):
@@ -217,7 +220,8 @@ class cloudapi_cloudspaces(BaseActor):
         :return: True if update was successful
         :return int with id of created cloudspace
         """
-        accountId = accountId
+        import ipdb; ipdb.set_trace()
+
         account = self.models.account.get(accountId)
         if account.status in resourcestatus.Account.INVALID_STATES:
             raise exceptions.NotFound("Account does not exist")
@@ -341,7 +345,6 @@ class cloudapi_cloudspaces(BaseActor):
 
         return cs.id
 
-    @authenticator.auth(acl={"cloudspace": set("C")})
     def deploy(self, cloudspaceId, **kwargs):
         """
         Create VFW for cloudspace
@@ -349,13 +352,20 @@ class cloudapi_cloudspaces(BaseActor):
         :param cloudspaceId: id of the cloudspace
         :return: status of deployment
         """
+        StatusHandler(self.models.cloudspace, cloudspaceId).update_status(resourcestatus.Cloudspace.DEPLOYING)
+        deployment = ObjectQueue.get_instance().queue(
+            self.models.cloudspace.cat,
+            cloudspaceId, 3, self._deploy, cloudspaceId)
+
+        success, result = deployment.get_result_tuple()
+        if not success:
+            StatusHandler(self.models.cloudspace, cloudspaceId).rollback_status(resourcestatus.Cloudspace.VIRTUAL)
+            raise result
+
+    @authenticator.auth(acl={"cloudspace": set("C")})
+    def _deploy(self, cloudspaceId, **kwargs):
         try:
-            with self.models.cloudspace.lock(cloudspaceId):
-                cs = self.models.cloudspace.get(cloudspaceId)
-                if cs.status != resourcestatus.Cloudspace.VIRTUAL:
-                    return
-                cs.status = resourcestatus.Cloudspace.DEPLOYING
-                self.models.cloudspace.set(cs)
+            cs = self.models.cloudspace.get(cloudspaceId)
             pool = self.models.externalnetwork.get(cs.externalnetworkId)
 
             if not cs.externalnetworkip:
@@ -396,15 +406,10 @@ class cloudapi_cloudspaces(BaseActor):
                 )
                 raise
 
-            self.models.cloudspace.updateSearch(
-                {"id": cs.id},
-                {
-                    "$set": {
-                        "updateTime": int(time.time()),
-                        "status": resourcestatus.Cloudspace.DEPLOYED,
-                    }
-                },
-            )
+            self.network.releaseExternalIpAddress(pool.id, str(externalipaddress))
+            StatusHandler(self.models.cloudspace, cs.id).update_status(
+                                resourcestatus.Cloudspace.DEPLOYED)        
+
             return resourcestatus.Cloudspace.DEPLOYED
         except Exception as e:
             j.errorconditionhandler.processPythonExceptionObject(

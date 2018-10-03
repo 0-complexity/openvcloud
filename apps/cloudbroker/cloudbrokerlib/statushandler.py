@@ -40,7 +40,7 @@ class StatusHandler(object):
         self.validate_transition(target_status)
         self._update_status(target_status)
 
-    def rollback_status(self, object_id, previous_status):
+    def rollback_status(self, previous_status):
         """ roll back status of an object in db
             
             :param object_id: id of the object
@@ -69,7 +69,7 @@ class StatusHandler(object):
     def validate_transition(self, target_status):
         if target_status not in self.object_class.ALLOWED_TRANSITIONS[self.status]:
             raise exceptions.BadRequest(
-                'Object of type "{}" in state "{}" cannot update to state "{}" at this time'.format(
+                '{} in state {} cannot update to state {}'.format(
                     self.category, self.status, target_status
                 )
             )
@@ -83,13 +83,15 @@ class StatusHandler(object):
             :param previous_status: previous static state to roll back to
         """
         if self.status not in self.object_class.TRANSITION_STATES:
-            raise exceptions.BadRequest("{}")
-        for status_lookup, allowed_transitions in self.object_class.ALLOWED_TRANSITIONS:
-            if self.status in allowed_transitions and status_lookup == previous_status:
+            raise exceptions.BadRequest("{} in state {} cannot roll back to {}".format(
+                self.category, self.status, previous_status)
+            )
+        for status_lookup in self.object_class.ALLOWED_TRANSITIONS:
+            if status_lookup == previous_status and self.status in self.object_class.ALLOWED_TRANSITIONS[status_lookup]:
                 return True
         raise exceptions.BadRequest(
-            '{} in state {} failed to roll back to state "{}"'.format(
-                 self.category, self.status, previous_status
+            '{} in state {} cannot roll back to state {}'.format(
+                self.category, self.status, previous_status
             )
         )
 

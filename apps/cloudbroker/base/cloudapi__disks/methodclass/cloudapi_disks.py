@@ -44,7 +44,7 @@ class cloudapi_disks(BaseActor):
 
     def get_max_size(self, gid, type):
         dtype = self.models.disktype.get(type)
-        provider = provider = self.cb.getProviderByGID(gid)
+        provider = self.cb.getProviderByGID(gid)
         block_size = provider.get_vpool_blocksize(dtype.vpool)
         return int((512 * block_size) / (dtype.cacheratio / 100.0))
 
@@ -100,6 +100,7 @@ class cloudapi_disks(BaseActor):
         cloudinitdata=None,
         **kwargs
     ):
+        import ipdb; ipdb.set_trace()
         max_size = self.get_max_size(gid, type)
         if size > max_size and type != "P":
             raise exceptions.BadRequest(

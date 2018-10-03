@@ -32,7 +32,7 @@ class ObjectQueue(object):
     """
 
     __instance = None
-    _valid_object_types = ("vm", "cloudspace", "disk", "image", "node")
+    _valid_object_types = ("vmachine", "cloudspace", "disk", "image", "node")
 
     def __new__(cls):
         if ObjectQueue.__instance is None:

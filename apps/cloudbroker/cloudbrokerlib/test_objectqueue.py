@@ -13,7 +13,7 @@ class TestObjectQueue(TestCase):
             for arg in args:
                 result += arg
             return result
-        future = ObjectQueue.get_instance().queue("vm", "1", 3, sum, 1, 2)
+        future = ObjectQueue.get_instance().queue("vmachine", "1", 3, sum, 1, 2)
         result = future.get_result()
         self.assertEqual(result, 3)
     
@@ -24,9 +24,9 @@ class TestObjectQueue(TestCase):
             if _future_context.details.parent_future:
                 result += _future_context.details.parent_future.get_result()
             return result
-        future = ObjectQueue.get_instance().queue("vm", "1", 3, sum, 1, 2)
-        future = future.chain("vm", "1", 3, sum, 4, 5)
-        future = future.chain("vm", "1", 3, sum, 4, 5)
+        future = ObjectQueue.get_instance().queue("vmachine", "1", 3, sum, 1, 2)
+        future = future.chain("vmachine", "1", 3, sum, 4, 5)
+        future = future.chain("vmachine", "1", 3, sum, 4, 5)
         result = future.get_result()
         self.assertEqual(result, 21)
 
@@ -37,11 +37,11 @@ class TestObjectQueue(TestCase):
             if _future_context.details.parent_future:
                 result += _future_context.details.parent_future.get_result()
             return result
-        stap1 = ObjectQueue.get_instance().queue("vm", "1", 3, sum, 1, 2)
-        stap2 = stap1.chain("vm", "1", 3, sum, 4, 5)
-        stap2b = stap1.chain("vm", "1", 3, sum, 4, 5)
-        stap2b2 = stap2b.chain("vm", "1", 3, sum, 4, 5)
-        stap3 = stap2.chain("vm", "1", 3, sum, 4, 5)
+        stap1 = ObjectQueue.get_instance().queue("vmachine", "1", 3, sum, 1, 2)
+        stap2 = stap1.chain("vmachine", "1", 3, sum, 4, 5)
+        stap2b = stap1.chain("vmachine", "1", 3, sum, 4, 5)
+        stap2b2 = stap2b.chain("vmachine", "1", 3, sum, 4, 5)
+        stap3 = stap2.chain("vmachine", "1", 3, sum, 4, 5)
         result = stap3.get_result()
         self.assertEqual(result, 21)
         self.assertEqual(stap1.get_result(), 3)
@@ -53,7 +53,7 @@ class TestObjectQueue(TestCase):
     def test_simple_fail(self):
         def fail():
             raise ValueError()
-        future = ObjectQueue.get_instance().queue("vm", "1", 1, fail)
+        future = ObjectQueue.get_instance().queue("vmachine", "1", 1, fail)
         self.assertRaises(ValueError, future.get_result)
 
     def test_double_fail(self):
@@ -61,8 +61,9 @@ class TestObjectQueue(TestCase):
             raise ValueError()
         def go():
             pass
-        future = ObjectQueue.get_instance().queue("vm", "1", 1, fail)
-        future = future.chain("vm", "1", 3, go)
+        future = ObjectQueue.get_instance().queue("vmachine", "1", 1, fail)
+        future = future.chain("vmachine", "1", 3, go)
+        import ipdb; ipdb.set_trace()
         self.assertRaises(ValueError, future.get_result)
 
 if __name__ == '__main__':

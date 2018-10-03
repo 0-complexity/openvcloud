@@ -1,8 +1,3 @@
-from JumpScale import j
-from JumpScale.portal.portal import exceptions
-from cloudbrokerlib import authenticator, network, resourcestatus
-from cloudbrokerlib.baseactor import BaseActor
-from CloudscalerLibcloud.utils import ovf
 import time
 import itertools
 import re
@@ -12,6 +7,13 @@ import urlparse
 import math
 import uuid
 from datetime import datetime
+from JumpScale import j
+from JumpScale.portal.portal import exceptions
+from cloudbrokerlib import authenticator, network, resourcestatus
+from cloudbrokerlib.objectqueue import ObjectQueue
+from cloudbrokerlib.statushandler import StatusHandler
+from cloudbrokerlib.baseactor import BaseActor
+from CloudscalerLibcloud.utils import ovf
 
 
 class RequireState(object):
@@ -78,6 +80,7 @@ class cloudapi_machines(BaseActor):
                         "Action %s is not supported on machine %s"
                         % (actiontype, machineId)
                     )
+
             result = method(node, **kwargs)
             if newstatus and newstatus != machine.status:
                 update = {"status": newstatus, "updateTime": int(time.time())}
@@ -101,7 +104,7 @@ class cloudapi_machines(BaseActor):
 
         :param machineId: id of the machine
         """
-        machine = self._getMachine(machineId)
+        machine = self._getMachine(machineId)      
         bootdisk = self._get_boot_disk(machine)
         if not bootdisk:
             raise exceptions.BadRequest("This machine doesn't have a boot disk")
@@ -947,10 +950,26 @@ class cloudapi_machines(BaseActor):
                 userdata,
             )
 
-        self.cb.machine.deploy_disks(
-            cloudspace, machine, disksize, datadisks, image
-        )
-        self.start(machine.Id)
+        StatusHandler(self.models.vmachine, machine.id).update_status(resourcestatus.Machine.DEPLOYING)
+
+        args = [cloudspace, machine, disksize, datadisks, image]
+        provisioning = ObjectQueue.get_instance().queue(
+            self.models.vmachine.cat,
+            machine.id, 3, self.cb.machine.deploy_disks, *args)
+
+        # self.cb.machine.deploy_disks(
+        #     cloudspace, machine, disksize, datadisks, image
+        # )
+        starting = provisioning.chain(self.models.vmachine.cat, machine.id, 3, self.start, machine.id)
+
+        try:
+            starting.get_result()
+        except:
+            StatusHandler(self.models.vmachine, machine.id).rollback_status(
+                resourcestatus.Machine.VIRTUAL)
+            raise
+
+        # self.start(machine.Id)
         kwargs["ctx"].env["tags"] += " machineId:{}".format(machine.id)
         gevent.spawn(
             self.cb.cloudspace.update_firewall,
