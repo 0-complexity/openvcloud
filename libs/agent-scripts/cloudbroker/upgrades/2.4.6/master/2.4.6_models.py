@@ -36,7 +36,7 @@ def action():
                 {"guid": vfw["guid"]},
                 {"$set": {"external": external}, "$unset": {"pubips": "", "vlan": ""}},
             )
-    ccl.cloudspace.updateSearch({'type': {"$in": [None, ""]}, {'$set': {'type': 'routeros'}})
+    ccl.cloudspace.updateSearch({'type': {"$in": [None, ""]}}, {'$set': {'type': 'routeros'}})
 
 
 if __name__ == "__main__":
