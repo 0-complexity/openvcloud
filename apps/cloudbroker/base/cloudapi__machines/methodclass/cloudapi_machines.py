@@ -1632,7 +1632,7 @@ class cloudapi_machines(BaseActor):
             j.apps.cloudapi.cloudspaces.addUser(
                 cloudspaceId=vmachine.cloudspaceId,
                 userId=userId,
-                accesstype=accesstype,
+                accesstype="R",
                 explicit=False,
             )
         try:

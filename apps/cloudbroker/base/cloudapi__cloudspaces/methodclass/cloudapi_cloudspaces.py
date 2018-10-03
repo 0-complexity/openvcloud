@@ -58,17 +58,18 @@ class cloudapi_cloudspaces(BaseActor):
             j.apps.cloudapi.accounts.addUser(
                 accountId=accountId,
                 userId=userId,
-                accesstype=accesstype,
+                accesstype="R",
                 explicit=False,
             )
-        try:
-            j.apps.cloudapi.users.sendShareResourceEmail(
-                user, "cloudspace", cloudspaceId, accesstype
-            )
-            return True
-        except:
-            self.deleteUser(cloudspaceId, userId, recursivedelete=False)
-            raise
+        if explicit:
+            try:
+                j.apps.cloudapi.users.sendShareResourceEmail(
+                    user, "cloudspace", cloudspaceId, accesstype
+                )
+                return True
+            except:
+                self.deleteUser(cloudspaceId, userId, recursivedelete=False)
+                raise
 
     def _addACE(
         self, cloudspaceId, userId, accesstype, userstatus="CONFIRMED", explicit=True

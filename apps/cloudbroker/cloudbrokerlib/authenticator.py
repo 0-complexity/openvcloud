@@ -82,7 +82,7 @@ class auth(object):
 
         for user_id, ace in self.getCloudspaceAcl(machine.cloudspaceId).iteritems():
             if user_id in result:
-                result[user_id]["canBeDeleted"] = False
+                result[user_id]["canBeDeleted"] = not ace['explicit']
                 result[user_id]["right"].update(ace["right"])
             else:
                 ace["canBeDeleted"] = False

@@ -29,14 +29,15 @@ class cloudapi_accounts(BaseActor):
         self._addACE(
             accountId, userId, accesstype, userstatus="CONFIRMED", explicit=explicit
         )
-        try:
-            j.apps.cloudapi.users.sendShareResourceEmail(
-                user, "account", accountId, accesstype
-            )
-            return True
-        except:
-            self.deleteUser(accountId, userId, recursivedelete=False)
-            raise
+        if explicit:
+            try:
+                j.apps.cloudapi.users.sendShareResourceEmail(
+                    user, "account", accountId, accesstype
+                )
+                return True
+            except:
+                self.deleteUser(accountId, userId, recursivedelete=False)
+                raise
 
     def _addACE(
         self, accountId, userId, accesstype, userstatus="CONFIRMED", explicit=True
@@ -149,7 +150,7 @@ class cloudapi_accounts(BaseActor):
             if len(admins) <= 1 and ace in admins:
                 ace["canBeDeleted"] = False
             else:
-                ace["canBeDeleted"] = True
+                ace["canBeDeleted"] = ace['explicit']
         return account
 
     @authenticator.auth(acl={"account": set("R")})
