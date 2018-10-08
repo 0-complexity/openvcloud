@@ -76,6 +76,7 @@
         """
         var:cloudspaceId int,, id of the cloudspace
         var:routertype str,, routertype to change to vgw or routeros
+        var: force bool,, whether to check routeros first or not @optional
 
 
     method:stopVFW

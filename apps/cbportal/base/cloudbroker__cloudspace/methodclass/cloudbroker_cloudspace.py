@@ -353,7 +353,7 @@ class cloudbroker_cloudspace(BaseActor):
         self.cb.cloudspace.update_firewall(cloudspace)
 
     @auth(groups=["level1", "level2", "level3"])
-    def startVFW(self, cloudspaceId, **kwargs):
+    def startVFW(self, cloudspaceId, force=False, **kwargs):
         """
         Start VFW
         param:cloudspaceId id of the cloudspace
@@ -364,7 +364,7 @@ class cloudbroker_cloudspace(BaseActor):
         if cloudspace.status == resourcestatus.Cloudspace.DELETED:
             raise exceptions.BadRequest("Selected Cloud Space is deleted")
         fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
-        result = self.cb.netmgr.fw_start(fwid=fwid)
+        result = self.cb.netmgr.fw_start(fwid=fwid, force=force)
         self.vfwcl.virtualfirewall.updateSearch(
             {"guid": fwid}, {"$set": {"state": "STARTED"}}
         )

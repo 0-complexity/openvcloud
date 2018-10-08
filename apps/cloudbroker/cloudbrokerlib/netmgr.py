@@ -539,7 +539,7 @@ class NetManager(object):
             result.append(vfwdict)
         return result
 
-    def fw_start(self, fwid, resettype="restore", targetNid=None, **kwargs):
+    def fw_start(self, fwid, resettype="restore", force=False, targetNid=None, **kwargs):
         """
         param:fwid firewall id
         param:gid grid id
@@ -548,12 +548,14 @@ class NetManager(object):
             raise exceptions.BadRequest(
                 "Invalid value {} for resettype".format(resettype)
             )
-        try:
-            running = self.fw_check(fwid)
-        except:
-            running = False
-        if running:
-            return True
+        if not force:
+            try:
+                running = self.fw_check(fwid)
+            except:
+                running = False
+            if running:
+                return True
+                
         fwobj = self._getVFWObject(fwid)
         cloudspace = self.cbmodel.cloudspace.get(int(fwobj.domain))
         if cloudspace.externalnetworkip is None:
