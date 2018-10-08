@@ -69,7 +69,7 @@
         Start VFW
         """
         var:cloudspaceId int,, id of the cloudspace
-        var: force bool,False, whether to check routeros is running first or not @optional
+        var:force bool,False, whether to check routeros is running first or not @optional
 
     method:changeRouterType
         """
