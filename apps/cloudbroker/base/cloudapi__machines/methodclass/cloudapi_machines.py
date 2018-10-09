@@ -1213,7 +1213,7 @@ class cloudapi_machines(BaseActor):
         groups = userobj.groups
         cloudspace = self.models.cloudspace.get(cloudspaceId)
         auth = authenticator.auth()
-        acl = auth.expandAclFromCloudspace(user, groups, cloudspace)
+        acl = auth.expandAclFromCloudspace(user, groups, cloudspace, explicit=True)
         q = {
             "cloudspaceId": cloudspaceId,
             "status": {"$nin": resourcestatus.Machine.INVALID_STATES},
@@ -1585,7 +1585,7 @@ class cloudapi_machines(BaseActor):
         provider, node, machine = self.cb.getProviderAndNode(machineId)
         if machine.status in resourcestatus.Machine.INVALID_STATES:
             raise exceptions.NotFound("Machine %s not found" % machineId)
-        tags = "machineId:{}".format(machineId)
+        tags = "machineId:{}(\D|$)".format(machineId)
         results = []
         for audit in self.sysmodels.audit.search({"tags": {"$regex": tags}})[1:]:
             parts = audit["call"].split("/")

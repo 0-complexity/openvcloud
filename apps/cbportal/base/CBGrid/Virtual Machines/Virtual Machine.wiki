@@ -92,7 +92,7 @@ h3. Port Forwards
 {% endfor %}
 
 h3. Audits
-{{grid.audits machineId:${id}}}
+{{grid.audits machineId:'$$id(\D|$)'}}
 
 {% else %}
 No Virtual Machine found

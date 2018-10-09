@@ -674,7 +674,7 @@ class cloudapi_cloudspaces(BaseActor):
         cloudspaceaccess = set()
 
         # get cloudspaces access via account
-        q = {"acl.userGroupId": user}
+        q = {"acl.userGroupId": user, "explicit": True}
         query = {"$query": q, "$fields": ["id"]}
         accountaccess = set(ac["id"] for ac in self.models.account.search(query)[1:])
         q = {"accountId": {"$in": list(accountaccess)}}

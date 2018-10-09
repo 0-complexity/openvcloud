@@ -231,7 +231,7 @@ h3. Unattached Disks
 {{accdisks: accountId:'$$id'}}
 
 h3. Audits
-{{grid.audits accountId:'$$id'}}
+{{grid.audits accountId:'$$id(\D|$)'}}
 {% else %}
 No account provided
 {% endif %}

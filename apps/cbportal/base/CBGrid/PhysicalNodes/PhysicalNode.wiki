@@ -124,7 +124,7 @@ h3. Vpools
 Failed to retreive OVS data please check [job|/grid/job?id=${ovsjob}]
 {% endif %}
 h2. Audits
-{{grid.audits nodeId:${node.id}}}
+{{grid.audits nodeId:'$$id(\D|$)'}}
 h2. Jobs
 {{grid.jobs nid:${node.id}}}
 {% else %}

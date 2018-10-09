@@ -98,23 +98,25 @@ class auth(object):
         fullacl.update(self.expandAclFromCloudspace(users, groups, cloudspace))
         return fullacl
 
-    def expandAclFromCloudspace(self, users, groups, cloudspace):
+    def expandAclFromCloudspace(self, users, groups, cloudspace, explicit=None):
         if not self.level or self.level == "cloudspace":
-            fullacl = self.expandAcl(users, groups, cloudspace.acl)
+            fullacl = self.expandAcl(users, groups, cloudspace.acl, explicit)
         else:
             fullacl = set()
         account = self.models.account.get(cloudspace.accountId)
-        fullacl.update(self.expandAcl(users, groups, account.acl))
+        fullacl.update(self.expandAcl(users, groups, account.acl, explicit))
         return fullacl
 
     def expandAclFromAccount(self, users, groups, account):
         fullacl = self.expandAcl(users, groups, account.acl)
         return fullacl
 
-    def expandAcl(self, user, groups, acl):
+    def expandAcl(self, user, groups, acl, explicit=None):
         fullacl = set()
         for ace in acl:
             right = set(ace.right)
+            if explicit is not None and ace.explicit != explicit:
+                continue
             if ace.type == "U" and ace.userGroupId == user:
                 fullacl.update(right)
             elif ace.type == "G" and ace.userGroupId in groups:

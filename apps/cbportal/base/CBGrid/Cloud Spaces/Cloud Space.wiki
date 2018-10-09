@@ -276,7 +276,7 @@ h3. Virtual Machines
 {{vmachines cloudspaceid:$$id}}
 
 h3. Audits
-{{grid.audits cloudspaceId:$$id}}
+{{grid.audits cloudspaceId:'$$id(\D|$)'}}
 {% else %}
 No Cloud Space found.
 {% endif %}
