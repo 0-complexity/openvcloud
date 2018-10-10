@@ -183,6 +183,7 @@ def action(vfw):
         ro.do("/system/identity/set", {"name": "%s/%s" % (networkid, networkidHex)})
         ro.do("/system/hardware/set", {"multi-cpu": "no"})
         ro.executeScript("/file remove numbers=[/file find]")
+        ro.executeScript("/ip socks set enabled=no")
 
         # create certificates
         certdir = j.system.fs.getTmpDirPath()
