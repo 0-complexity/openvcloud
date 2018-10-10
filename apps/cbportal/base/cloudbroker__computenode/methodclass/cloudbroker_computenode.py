@@ -141,7 +141,7 @@ class cloudbroker_computenode(BaseActor):
         machines = self.models.vmachine.search(querybuilder)[1:]
         return machines
 
-    def maintenance(self, id, gid, vmaction, **kwargs):
+    def maintenance(self, id, gid, vmaction, offline=False, **kwargs):
         """
         :param id: stack Id
         :param gid: Grid id
@@ -150,13 +150,16 @@ class cloudbroker_computenode(BaseActor):
         """
         if vmaction not in ("move", "stop"):
             raise exceptions.BadRequest("VMAction should either be move or stop")
+
         stack = self._getStack(id, gid)
         errorcb = functools.partial(self._errorcb, stack)
         self._changeStackStatus(stack, "MAINTENANCE")
+
         title = "Putting Node in Maintenance"
         stackmachines = self._get_stack_machines(
             stack["id"], ["id", "status", "tags", "name", "disks"]
         )
+
         if vmaction == "stop":
             machines_actor = j.apps.cloudbroker.machine
             for machine in stackmachines:
@@ -176,6 +179,7 @@ class cloudbroker_computenode(BaseActor):
 
             machineIds = [machine["id"] for machine in stackmachines]
             machines_actor.stopMachines(machineIds, "", ctx=kwargs["ctx"])
+
         elif vmaction == "move":
             move_vms = []
             system_vfwid = None
@@ -191,15 +195,17 @@ class cloudbroker_computenode(BaseActor):
                     system_vfwid = self.models.cloudspace.searchOne(
                         {"id": stackmachine["cloudspaceId"]}
                     )["networkId"]
+                    
             kwargs["ctx"].events.runAsync(
                 self._move_virtual_machines,
-                args=(stack, title, kwargs["ctx"], move_vms, system_vfwid),
+                args=(stack, title, kwargs["ctx"], move_vms, system_vfwid, offline),
                 kwargs={},
                 title="Putting Node in Maintenance",
                 success="Successfully moved all Virtual Machines",
                 error="Failed to move Virtual Machines",
                 errorcb=errorcb,
             )
+
         node_id = int(stack["referenceId"])
         self.cb.executeJumpscript("cloudscalers", "nodestatus", nid=node_id, gid=gid)
         self.node.unscheduleJumpscripts(node_id, gid, category="monitor.healthcheck")
@@ -254,7 +260,7 @@ class cloudbroker_computenode(BaseActor):
             self.cb.netmgr.fw_start(vfw["guid"])
 
     def _move_virtual_machines(
-        self, stack, title, ctx, stackmachines, exclude_vfwid=None
+        self, stack, title, ctx, stackmachines, exclude_vfwid=None, offline=False
     ):
         machines_actor = j.apps.cloudbroker.machine
         othernodes = self.sysmodels.node.search(
@@ -281,6 +287,7 @@ class cloudbroker_computenode(BaseActor):
                 "id": {"$ne": exclude_vfwid},
             }
         )[1:]
+
         for vfw in vfws:
             nid = int(
                 self.cb.getBestStack(
@@ -288,18 +295,21 @@ class cloudbroker_computenode(BaseActor):
                 )["referenceId"]
             )
             ctx.events.sendMessage(title, "Moving Virtual Firewal %s" % vfw["id"])
-            if not self.cb.netmgr.fw_move(vfw["guid"], nid):
-                try:
-                    self.cb.netmgr.fw_delete(
-                        fwid=vfw["guid"], deletemodel=False, timeout=20
-                    )
-                except exceptions.ServiceUnavailable:
-                    # agent on node is probably not running lets just start it somewhere else
-                    pass
-                self.cb.netmgr.fw_start(vfw["guid"], targetNid=nid)
+            if offline:
+                vfwobj = self._vcl.get(vfw["id"])
+                self.cb.netmgr._fw_create(vfwobj, targetNid=nid, isnew=False)
+            else:
+                if not self.cb.netmgr.fw_move(vfw["guid"], nid):
+                    try:
+                        self.cb.netmgr.fw_delete(
+                            fwid=vfw["guid"], deletemodel=False, timeout=20
+                        )
+                    except exceptions.ServiceUnavailable:
+                        pass # agent on node is probably not running lets just start it somewhere else
+                    self.cb.netmgr.fw_start(vfw["guid"], targetNid=nid)
 
     @auth(groups=["level2", "level3"])
-    def decommission(self, id, gid, message, **kwargs):
+    def decommission(self, id, gid, message, offline=False, **kwargs):
         stack = self._getStack(id, gid)
         stacks = self.models.stack.search({"gid": gid, "status": "ENABLED"})[1:]
         if not stacks:
@@ -313,7 +323,7 @@ class cloudbroker_computenode(BaseActor):
         stackmachines = self._get_stack_machines(stack["id"], ["id", "name"])
         ctx.events.runAsync(
             self._move_virtual_machines,
-            args=(stack, title, ctx, stackmachines),
+            args=(stack, title, ctx, stackmachines, None, offline),
             kwargs={},
             title=title,
             success="Successfully moved all Virtual Machines.</br>Decommissioning finished.",

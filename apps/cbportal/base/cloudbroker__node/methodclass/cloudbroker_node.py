@@ -44,18 +44,18 @@ class cloudbroker_node(BaseActor):
         )
 
     @auth(groups=["level2", "level3"])
-    def maintenance(self, nid, vmaction, **kwargs):
+    def maintenance(self, nid, vmaction, offline=False, **kwargs):
         node = self._getNode(nid)
         kwargs["ctx"].events.runAsync(
             self._maintenance,
-            args=(node, vmaction),
+            args=(node, vmaction, offline),
             kwargs=kwargs,
             title="Deactivating node",
             success="Successfully deactivated node",
             error="Failed to deactivate node",
         )
 
-    def _maintenance(self, node, vmaction, **kwargs):
+    def _maintenance(self, node, vmaction, offline, **kwargs):
         if "storagedriver" in node["roles"]:
             j.apps.cloudbroker.ovsnode.deactivateNodes([node["id"]], **kwargs)
         if "cpunode" in node["roles"]:
@@ -63,7 +63,7 @@ class cloudbroker_node(BaseActor):
                 node["id"], node["gid"]
             )
             j.apps.cloudbroker.computenode.maintenance(
-                stack["id"], node["gid"], vmaction, **kwargs
+                stack["id"], node["gid"], vmaction, offline, **kwargs
             )
 
     @auth(groups=["level2", "level3"])
@@ -102,7 +102,7 @@ class cloudbroker_node(BaseActor):
         )
 
     @auth(groups=["level2", "level3"])
-    def decommission(self, nid, vmaction, **kwargs):
+    def decommission(self, nid, vmaction, offline=False,  **kwargs):
         node = self._getNode(nid)
         gid = node["gid"]
         if "storagedriver" in node["roles"]:
@@ -114,7 +114,7 @@ class cloudbroker_node(BaseActor):
             stack = j.apps.cloudbroker.computenode._getStackFromNode(nid, gid)
             kwargs["ctx"].events.runAsync(
                 j.apps.cloudbroker.computenode.maintenance,
-                args=(stack["id"], gid, vmaction),
+                args=(stack["id"], gid, vmaction, offline),
                 kwargs=kwargs,
                 title="Deactivating comppute node",
                 success="Successfully deactivated compute node",

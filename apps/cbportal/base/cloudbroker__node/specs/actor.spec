@@ -7,7 +7,8 @@
         Place node in maintenance state
         """
         var:nid int,,nid of node
-        var:vmaction str,, what to do with running vms move or stop @optional
+        var:vmaction str,, what to do with running vms move or stop
+        var:offline bool,False, offline node flag @optional
 
     method:enable
         """
@@ -29,6 +30,7 @@
         """
         var:nid int,,nid of node
         var:vmaction str,, what to do with running vms move or stop @optional
+        var:offline bool,False, offline node flag @optional
 
     method:applyIpmiAction
         """

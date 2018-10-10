@@ -1054,3 +1054,89 @@ class MachineTests(BasicACLTest):
         self.assertEqual(e.exception.status_code, 409)
 
         self.lg("%s ENDED" % self._testID)
+
+    def test022_routeros_selfhealing(self):
+        """ OVC-69
+        *Test case for test routeros selfhealing*
+
+        **Test Scenario:**
+        #. Create cloudspace CS1.
+        #. Create virtual machine VM1.
+        #. Power off the node which hosts cloudspace CS1's routeros
+        #. Check that vfw is moved to another node and is running.
+        #. Try to connect to the virtual machine VM1, should succeed.
+        """
+        self.lg("%s STARTED" % self._testID)
+
+        self.lg("Get vfw info")
+        vfw = self.api.cloudbroker.cloudspace.getVFW(cloudspaceId=self.cloudspace_id)
+
+        self.lg("Create virtual machine")
+        vm_stack_id = self.get_running_stackId(except_stackid=vfw["nid"])
+        machine_id = self.cloudapi_create_machine(
+            cloudspace_id=self.cloudspace_id, stackId=vm_stack_id
+        )
+
+        try:
+            self.lg("Power off the node which hosts cloudspace CS1's routeros")
+            self.api.cloudbroker.node.applyIpmiAction(nid=vfw["nid"], action="shutdown")
+
+            time.sleep(5 * 60)
+
+            self.lg("Check that vfw is moved to another node and is running")
+            moved_vfw = self.api.cloudbroker.cloudspace.getVFW(
+                cloudspaceId=self.cloudspace_id
+            )
+            self.assertNotEqual(moved_vfw["nid"], vfw["nid"])
+            self.assertEqual(moved_vfw["status"], "RUNNING")
+
+            self.lg("Try to connect to the virtual machine VM1, should succeed")
+            vm_client = VMClient(machine_id)
+            _, stdout, _ = vm_client.execute("hostname")
+            self.assertEqual(stdout.read().split(), "vm-{}".format(machine_id))
+
+        finally:
+            self.api.cloudbroker.node.applyIpmiAction(nid=vfw["nid"], action="power_on")
+
+    def test023_vm_selfhealing(self):
+        """ OVC-70
+        *Test case for test virtual machine selfhealing*
+
+        **Test Scenario:**
+        #. Create cloudspace CS1.
+        #. Create virtual machine VM1.
+        #. Power off the node which hosts virtual machine VM1.
+        #. Check that virtual machine VM1 is moved to another node and is running.
+        #. Try to connect to the virtual machine VM1, should succeed.
+        """
+        self.lg("%s STARTED" % self._testID)
+
+        self.lg("Create virtual machine VM1")
+        ccl = j.clients.osis.getNamespace("cloudbroker")
+        machine_id = self.cloudapi_create_machine(cloudspace_id=self.cloudspace_id)
+        machine_info = self.api.cloudapi.machines.get(machineId=machine_id)
+        stackId = machine_info["stackId"]
+        nid = int(ccl.stack.get(stackId).referenceId)
+
+        try:
+            self.lg("Power off the node which hosts virtual machine VM1")
+            self.api.cloudbroker.node.applyIpmiAction(nid=nid, action="shutdown")
+
+            time.sleep(5 * 60)
+
+            self.lg(
+                "Check that virtual machine VM1 is moved to another node and is running"
+            )
+            machine_info = self.api.cloudapi.machines.get(machineId=machine_id)
+            self.assertNotEqual(machine_info["stackId"], stackId)
+            self.assertEqual(machine_info["status"], "RUNNING")
+
+            self.lg("Try to connect to the virtual machine VM1, should succeed")
+            vm_client = VMClient(machine_id)
+            _, stdout, _ = vm_client.execute("hostname")
+            self.assertEqual(stdout.read().split(), "vm-{}".format(machine_id))
+
+        finally:
+            self.api.cloudbroker.node.applyIpmiAction(nid=nid, action="power_on")
+
+        self.lg("%s ENDED" % self._testID)
