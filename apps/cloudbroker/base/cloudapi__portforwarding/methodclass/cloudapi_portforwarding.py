@@ -1,6 +1,6 @@
 from JumpScale import j
 from JumpScale.portal.portal import exceptions
-from cloudbrokerlib import authenticator
+from cloudbrokerlib import authenticator, resourcestatus
 from cloudbrokerlib.baseactor import BaseActor
 import netaddr
 
@@ -90,7 +90,7 @@ class cloudapi_portforwarding(BaseActor):
             raise exceptions.BadRequest("Local port should be between 1 and 65535")
         if protocol and protocol not in ("tcp", "udp"):
             raise exceptions.BadRequest("Protocol should be either tcp or udp")
-        if cloudspace.status != "DEPLOYED":
+        if cloudspace.status != resourcestatus.Cloudspace.DEPLOYED:
             raise exceptions.BadRequest(
                 "Cannot create a portforwarding during cloudspace deployment."
             )
@@ -358,7 +358,7 @@ class cloudapi_portforwarding(BaseActor):
     def _process_list(self, forwards, cloudspaceId):
         result = list()
         query = {
-            "$query": {"cloudspaceId": cloudspaceId, "status": {"$ne": "DESTROYED"}},
+            "$query": {"cloudspaceId": cloudspaceId, "status": {"$nin": resourcestatus.Machine.INVALID_STATES}},
             "$fields": ["id", "nics.ipAddress", "name"],
         }
 

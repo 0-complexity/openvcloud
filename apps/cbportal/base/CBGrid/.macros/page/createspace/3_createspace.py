@@ -47,7 +47,7 @@ def main(j, args, params, tags, tasklet):
     popup.addDropdown(
         "Choose Router Type",
         "type",
-        [("Virtual Gateway", "vgw"), ("Router OS", "routeros")],
+        [("Router OS", "routeros"), ("Virtual Gateway", "vgw")],
     )
     popup.addText("Private Network", "privatenetwork", value="192.168.103.0/24")
     popup.addText(
