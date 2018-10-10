@@ -78,26 +78,13 @@ class cloudbroker_grid(BaseActor):
         self.sysmodels.version.updateSearch(
             {"status": "INSTALLING"}, {"$set": {"status": "ERROR"}}
         )
-        if self.sysmodels.version.count({"name": version}) > 0:
-            self.sysmodels.version.updateSearch(
-                {"name": version},
-                {
-                    "$set": {
-                        "creationTime": current_time,
-                        "status": "INSTALLING",
-                        "url": url,
-                        "manifest": manifest,
-                    }
-                },
-            )
-        else:
-            versionmodel = self.sysmodels.version.new()
-            versionmodel.name = version
-            versionmodel.url = url
-            versionmodel.manifest = manifest
-            versionmodel.creationTime = current_time
-            versionmodel.status = "INSTALLING"
-            self.sysmodels.version.set(versionmodel)
+        versionmodel = self.sysmodels.version.new()
+        versionmodel.name = version
+        versionmodel.url = url
+        versionmodel.manifest = manifest
+        versionmodel.creationTime = current_time
+        versionmodel.status = "INSTALLING"
+        self.sysmodels.version.set(versionmodel)
 
         gids = [x["gid"] for x in self.models.location.search({"$fields": ["gid"]})[1:]]
         for gid in gids:
