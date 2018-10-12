@@ -17,19 +17,22 @@ from CloudscalerLibcloud.utils import ovf
 
 
 class RequireState(object):
-    def __init__(self, state, msg):
+    def __init__(self, state, msg, refresh=True):
         self.state = state
         self.msg = msg
+        self.refresh = refresh
 
     def __call__(self, func):
         def wrapper(s, **kwargs):
             machineId = int(kwargs["machineId"])
-            if not s.models.vmachine.exists(machineId):
+            machine = s.models.vmachine.searchOne({'id': machineId})
+            if not machine:
                 raise exceptions.NotFound(
                     "Machine with id %s was not found" % machineId
                 )
-
-            machine = s.get(machineId)
+            if self.refresh:
+                machine = s.get(machineId)
+            
             if not machine["status"] == self.state:
                 raise exceptions.Conflict(self.msg)
             return func(s, **kwargs)
@@ -43,23 +46,25 @@ class cloudapi_machines(BaseActor):
 
     """
 
+    # default retry count
+    _RETRY_COUNT = 3
+
     def __init__(self):
         super(cloudapi_machines, self).__init__()
         self.network = network.Network(self.models)
         self.netmgr = self.cb.netmgr
         self.acl = self.cb.agentcontroller
 
-    def _action(
-        self, machineId, actiontype, newstatus=None, provider=None, node=None, **kwargs
-    ):
-        """
-        Perform a action on a machine, supported types are STOP, START, PAUSE, RESUME, REBOOT
-        param:machineId id of the machine
-        param:actiontype type of the action(e.g stop, start, ...)
-        result bool
 
-        """
-        with self.models.vmachine.lock(machineId):
+    def _action(
+            self, machineId, actiontype, newstatus=None, provider=None, node=None, **kwargs
+        ):
+            """
+            Perform a action on a machine, supported types are STOP, START, PAUSE, RESUME, REBOOT
+            param:machineId id of the machine
+            param:actiontype type of the action(e.g stop, start, ...)
+            result bool
+            """
             if provider is None or node is None:
                 provider, node, machine = self.cb.getProviderAndNode(machineId)
             else:
@@ -80,11 +85,11 @@ class cloudapi_machines(BaseActor):
                         "Action %s is not supported on machine %s"
                         % (actiontype, machineId)
                     )
-
             result = method(node, **kwargs)
             if newstatus and newstatus != machine.status:
-                update = {"status": newstatus, "updateTime": int(time.time())}
-                self.models.vmachine.updateSearch({"id": machine.id}, {"$set": update})
+                StatusHandler(
+                    self.models.vmachine, machine.id, machine.status
+                ).update_status(newstatus)
             return result
 
     def _get_boot_disk(self, machine):
@@ -98,13 +103,28 @@ class cloudapi_machines(BaseActor):
         return bootdisk
 
     @authenticator.auth(acl={"machine": set("X")})
-    def start(self, machineId, diskId=None, **kwargs):
+    @RequireState(
+        resourcestatus.Machine.HALTED,
+        "Action START can be executed only on HALTED Machine",
+        True
+    )
+    def start(self, machineId, **kwargs):
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._start,
+            init_status=resourcestatus.Machine.HALTED,
+            transition_status=resourcestatus.Machine.STARTING,
+            revert_status=True,
+            **kwargs
+        )
+
+    def _start(self, machineId, diskId=None, **kwargs):
         """
         Start the machine
 
         :param machineId: id of the machine
         """
-        machine = self._getMachine(machineId)      
+        machine = self._getMachine(machineId)
         bootdisk = self._get_boot_disk(machine)
         if not bootdisk:
             raise exceptions.BadRequest("This machine doesn't have a boot disk")
@@ -155,23 +175,40 @@ class cloudapi_machines(BaseActor):
             node=node,
         )
 
+
+
     @authenticator.auth(acl={"machine": set("X")})
+    @RequireState(
+        resourcestatus.Machine.RUNNING,
+        "Action STOP can be executed only on RUNNING Machine",
+        True
+    )
     def stop(self, machineId, force=False, **kwargs):
         """
         Stop the machine
 
         :param machineId: id of the machine
         """
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._stop,
+            init_status=resourcestatus.Machine.RUNNING,
+            transition_status=resourcestatus.Machine.STOPPING,
+            **kwargs
+        )
+
+    def _stop(self, machineId, force=False, **kwargs):
         machine = self._getMachine(machineId)
         tags = j.core.tags.getObject(machine.tags)
         if "cdrom" in tags.tags:
             tags.tagDelete("cdrom")
             self.models.vmachine.updateSearch(
                 {"id": machine.id}, {"$set": {"tags": tags.tagstring}}
-            )
+            )            
         return self._action(
-            machineId, "stop", resourcestatus.Machine.HALTED, force=force
+            machineId, "stop", resourcestatus.Machine.HALTED, force=force, **kwargs
         )
+
 
     @authenticator.auth(acl={"machine": set("X")})
     def reboot(self, machineId, **kwargs):
@@ -180,7 +217,19 @@ class cloudapi_machines(BaseActor):
 
         :param machineId: id of the machine
         """
-        return self._action(machineId, "soft_reboot", resourcestatus.Machine.RUNNING)
+        # return self._action(machineId, "soft_reboot", resourcestatus.Machine.RUNNING)
+        init_status = StatusHandler(self.models.vmachine, machineId).status
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._action,
+            init_status=init_status,
+            transition_status=resourcestatus.Machine.REBOOTING,
+            actiontype="soft_reboot",
+            newstatus=resourcestatus.Machine.RUNNING,
+            **kwargs
+        )
+
+        
 
     @authenticator.auth(acl={"machine": set("X")})
     def reset(self, machineId, **kwargs):
@@ -189,25 +238,62 @@ class cloudapi_machines(BaseActor):
 
         :param machineId: id of the machine
         """
-        return self._action(machineId, "hard_reboot", resourcestatus.Machine.RUNNING)
+        # return self._action(machineId, "hard_reboot", resourcestatus.Machine.RUNNING)
+        init_status = StatusHandler(self.models.vmachine, machineId).status
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._action,
+            init_status=init_status,
+            transition_status=resourcestatus.Machine.RESETING,
+            actiontype="hard_reboot",
+            newstatus=resourcestatus.Machine.RUNNING,
+            **kwargs
+        )        
+
 
     @authenticator.auth(acl={"machine": set("X")})
+    @RequireState(
+        resourcestatus.Machine.RUNNING,
+        "Can only pause machine in state RUNNING",
+    )
     def pause(self, machineId, **kwargs):
         """
         Pause the machine
 
         :param machineId: id of the machine
         """
-        return self._action(machineId, "pause", resourcestatus.Machine.PAUSED)
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._action,
+            init_status=resourcestatus.Machine.RUNNING,
+            transition_status=resourcestatus.Machine.PAUSING,
+            actiontype="pause",
+            newstatus=resourcestatus.Machine.PAUSED,
+            **kwargs
+        )
+
 
     @authenticator.auth(acl={"machine": set("X")})
+    @RequireState(
+        resourcestatus.Machine.PAUSED,
+        "Can only resume machine in state PAUSED",
+    )    
     def resume(self, machineId, **kwargs):
         """
         Resume the machine
 
         :param machineId: id of the machine
         """
-        return self._action(machineId, "resume", resourcestatus.Machine.RUNNING)
+        # return self._action(machineId, "resume", resourcestatus.Machine.RUNNING)
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._action,
+            init_status=resourcestatus.Machine.PAUSED,
+            transition_status=resourcestatus.Machine.RESUMING,
+            actiontype="resume",
+            newstatus=resourcestatus.Machine.RUNNING,
+            **kwargs
+        )        
 
     @authenticator.auth(acl={"cloudspace": set("C")})
     def addDisk(
@@ -324,11 +410,13 @@ class cloudapi_machines(BaseActor):
         disk.order = diskorder
         volume = j.apps.cloudapi.disks.getStorageVolume(disk, provider, node)
         provider.attach_volume(node, volume)
-        self.models.disk.updateSearch({"id": disk.id}, {"$set": {"order": diskorder}})
+        self.models.disk.updateSearch({"id": disk.id}, {"$set": {"order": diskorder} })
+
+        # add disk to the vm model
         machine.disks.append(disk.id)
-        disk.status = resourcestatus.Disk.ASSIGNED
-        self.models.disk.set(disk)
-        self.models.vmachine.set(machine)
+        self.models.vmachine.updateSearch({"id": machine.id}, {"$set": {"disks": machine.disks}})
+        StatusHandler(self.models.disk, disk.id, disk.status).update_status(resourcestatus.Disk.ASSIGNED)
+
         return True
 
     @authenticator.auth(acl={"account": set("C")})
@@ -568,7 +656,9 @@ class cloudapi_machines(BaseActor):
 
             nic = vm.new_nic()
             nic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
-            nic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(cloudspace.gid)
+            nic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(
+                cloudspace.gid
+            )
             nic.deviceName = "spc-{:04x}".format(cloudspace.networkId)
             nic.type = "bridge"
             # Validate that enough resources are available in the CU limits to clone the machine
@@ -600,7 +690,7 @@ class cloudapi_machines(BaseActor):
                     size, vm.id, cloudspace.networkId, machine["disks"]
                 )
                 self.cb.machine.update_volumes(vm, volumes)
-                self.start(vm.id)
+                self._start(vm.id)
             except:
                 self.cb.machine.cleanup(vm)
                 raise
@@ -950,26 +1040,51 @@ class cloudapi_machines(BaseActor):
                 userdata,
             )
 
-        StatusHandler(self.models.vmachine, machine.id).update_status(resourcestatus.Machine.DEPLOYING)
+        StatusHandler(
+            self.models.vmachine, machine.id, resourcestatus.Machine.VIRTUAL
+        ).update_status(resourcestatus.Machine.DEPLOYING)
 
+        kwargs_ctx = {"ctx": kwargs["ctx"]}
         args = [cloudspace, machine, disksize, datadisks, image]
         provisioning = ObjectQueue.get_instance().queue(
             self.models.vmachine.cat,
-            machine.id, 3, self.cb.machine.deploy_disks, *args)
-
-        # self.cb.machine.deploy_disks(
-        #     cloudspace, machine, disksize, datadisks, image
-        # )
-        starting = provisioning.chain(self.models.vmachine.cat, machine.id, 3, self.start, machine.id)
+            machine.id,
+            self._RETRY_COUNT,
+            self.cb.machine.deploy_disks,
+            *args,
+            **kwargs_ctx
+        )
+        starting = provisioning.chain(
+            self.models.vmachine.cat,
+            machine.id,
+            self._RETRY_COUNT,
+            self._start,
+            machine.id,
+            **kwargs_ctx
+        )
 
         try:
             starting.get_result()
-        except:
-            StatusHandler(self.models.vmachine, machine.id).rollback_status(
-                resourcestatus.Machine.VIRTUAL)
+        except Exception as e:
+            deleting = ObjectQueue.get_instance().queue(
+                self.models.vmachine.cat,
+                machine.id,
+                self._RETRY_COUNT,
+                self._delete,
+                machine.id,
+                compeletely=True,
+                **kwargs_ctx
+            )
+            cleaning_up = deleting.chain(
+                self.models.vmachine.cat,
+                machine.id,
+                self._RETRY_COUNT,
+                self.cb.machine.cleanup,
+                machine,
+                **kwargs_ctx)
+
             raise
 
-        # self.start(machine.Id)
         kwargs["ctx"].env["tags"] += " machineId:{}".format(machine.id)
         gevent.spawn(
             self.cb.cloudspace.update_firewall,
@@ -1023,14 +1138,7 @@ class cloudapi_machines(BaseActor):
             cloudspace.id, vcpus, memory / 1024.0, totaldisksize
         )
         machine = self.cb.machine.createModel(
-            name,
-            description,
-            cloudspace,
-            imageId,
-            sizeId,
-            vcpus,
-            memory,
-            userdata,
+            name, description, cloudspace, imageId, sizeId, vcpus, memory, userdata
         )
         return machine, cloudspace, image
 
@@ -1044,17 +1152,71 @@ class cloudapi_machines(BaseActor):
         :return True if machine was deleted successfully
 
         """
-        provider, node, vmachinemodel = self.cb.getProviderAndNode(machineId)
+        if permanently:
+            target_status = resourcestatus.Machine.DESTROYED
+            transition_status = resourcestatus.Machine.DESTROYING
+        else:
+            target_status = resourcestatus.Machine.DELETED
+            transition_status = resourcestatus.Machine.DELETING
+
+        status_handler = StatusHandler(self.models.vmachine, machineId)
+        if status_handler.status == target_status:
+            return True
+
+        # set vm to status DESTROYING or DELETING
+        status_handler.update_status(transition_status)
+
+        kwargs_ctx = {"ctx": kwargs["ctx"]}
+        deleting = ObjectQueue.get_instance().queue(
+            self.models.vmachine.cat,
+            machineId,
+            self._RETRY_COUNT,
+            self._delete,
+            machineId,
+            permanently,
+            **kwargs_ctx
+        )
+
+        return deleting.get_result()
+
+
+    def _delete(self, machineId, permanently=False, **kwargs):        
+        provider, node, machine = self.cb.getProviderAndNode(machineId)
         if "name" in kwargs and kwargs["name"]:
-            if vmachinemodel.name != kwargs["name"]:
+            if machine.name != kwargs["name"]:
                 raise exceptions.BadRequest("Incorrect machine name specified")
         if node and node.extra.get("locked", False):
             raise exceptions.Conflict("Can not delete a locked Machine")
-        current_status = vmachinemodel.status
-        if current_status == resourcestatus.Machine.DELETED:
-            if permanently:
-                self.cb.machine.destroy_machine(machineId)
+        
+        # get machine disks
+        pdisks = self.models.disk.search({"id": {"$in": machine.disks}, "type": "P"})[
+            1:
+        ]
+        disk_ids = self.models.disk.search(
+            {
+                "$query": {"id": {"$in": machine.disks}, "type": {"$ne": "P"}},
+                "$fields": ["id"],
+            }
+        )[1:]
+        disks = [self.models.disk.get(disk["id"]) for disk in disk_ids]
+
+        # define statuses based on flag @permanently
+        if permanently or pdisks:
+            target_status = resourcestatus.Machine.DESTROYED
+            transition_disk_status = resourcestatus.Disk.DESTROYING_ATTACHED_DISK
+            target_disk_status = resourcestatus.Disk.DESTROYED
+        else:
+            target_status = resourcestatus.Machine.DELETED
+            transition_disk_status = resourcestatus.Disk.DELETING_ATTACHED_DISK
+            target_disk_status = resourcestatus.Disk.DELETED
+            
+        if machine.status == target_status:
             return True
+
+        if machine.status == resourcestatus.Machine.DELETED and permanently and provider:
+            return provider.destroy_node(node)
+
+
         vms = self.models.vmachine.search(
             {
                 "cloneReference": machineId,
@@ -1067,23 +1229,13 @@ class cloudapi_machines(BaseActor):
                 "Can not delete a Virtual Machine which has clones.\nExisting Clones Are:\n%s"
                 % "\n".join(clonenames)
             )
-        vmachinemodel.nics = self._detachExternalNetworkFromModel(vmachinemodel.nics)
-        self.models.vmachine.set(vmachinemodel)
-        delete_state = resourcestatus.Machine.DELETED
-        pdisks = self.models.disk.search(
-            {"id": {"$in": vmachinemodel.disks}, "type": "P"}
-        )[1:]
-        if pdisks or permanently:
-            delete_state = resourcestatus.Machine.DESTROYED
-        if not current_status == delete_state:
-            current_time = int(time.time())
-            vmachinemodel.updateTime = current_time
-            vmachinemodel.deletionTime = current_time
-            vmachinemodel.status = delete_state
-            self.models.vmachine.set(vmachinemodel)
+
+        # checks are done, proceed  to deleting machine
+        nics = self._detachExternalNetworkFromModel(machine.nics)
+        self.models.vmachine.updateSearch({"id": machine.id}, {"$set": {"nics": nics}})
 
         try:
-            j.apps.cloudapi.portforwarding.deleteByVM(vmachinemodel)
+            j.apps.cloudapi.portforwarding.deleteByVM(machine)
         except Exception as e:
             j.errorconditionhandler.processPythonExceptionObject(
                 e,
@@ -1096,27 +1248,45 @@ class cloudapi_machines(BaseActor):
                 message="Failed to delete pf for vm with id %s can not apply config"
                 % machineId,
             )
+
+        for disk in disks:
+            StatusHandler(self.models.disk, disk.id, disk.status).update_status(
+                transition_disk_status
+            )
+
         if provider:
             provider.destroy_node(node)
-        self.models.disk.updateSearch(
-            {"id": {"$in": vmachinemodel.disks}},
-            {"$set": {"status": resourcestatus.Disk.DELETED}},
-        )
 
-        # delete leases
-        cloudspace = self.models.cloudspace.get(vmachinemodel.cloudspaceId)
-        fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
-        macs = list()
-        for nic in vmachinemodel.nics:
-            if nic.type != "PUBLIC" and nic.macAddress:
-                macs.append(nic.macAddress)
-        if macs:
-            try:
-                self.netmgr.fw_remove_lease(fwid, macs)
-            except exceptions.ServiceUnavailable as e:
-                j.errorconditionhandler.processPythonExceptionObject(
-                    e, message="vfw is not deployed yet"
-                )
+        # disk_provider.destroy_volume(volume)
+        if permanently:
+            # schedule destroy action on each disk
+            for disk in disks:
+                disk_provider = self.cb.getProviderByGID(disk.gid)
+                volume = j.apps.cloudapi.disks.getStorageVolume(disk, provider)
+
+                # destroying disk
+                try:
+                    disk_provider.destroy_volume(volume)
+
+                    # set disk to DESTROYED state
+                    StatusHandler(
+                        self.models.disk, disk.id, transition_disk_status
+                    ).update_status(target_disk_status)
+
+                except Exception as e:
+                    StatusHandler(self.models.disk, disk.id, disk.status).update_status(
+                        resourcestatus.Disk.DELETED
+                    )
+                    j.errorconditionhandler.processPythonExceptionObject(
+                        e, message="Failed to delete disk %s" % disk.id
+                    )
+        else:
+            # Set disks to status DELETED
+            for disk in disks:
+                StatusHandler(
+                    self.models.disk, disk.id, transition_disk_status
+                ).update_status(target_disk_status)
+
         for pdisk in pdisks:
             disk_info = urlparse.urlparse(pdisk["referenceId"])
             node_id = disk_info.query.split("=")[1]
@@ -1124,8 +1294,10 @@ class cloudapi_machines(BaseActor):
             self.acl.executeJumpscript(
                 "jumpscale", "exec", nid=node_id, args={"cmd": cmd}
             )
-        if delete_state == resourcestatus.Machine.DESTROYED:
-            self.cb.machine.destroy_volumes(vmachinemodel.disks)
+
+        StatusHandler(self.models.vmachine, machine.id, machine.status).update_status(
+            target_status
+        )
         return True
 
     @authenticator.auth(acl={"machine": set("R")})
@@ -1268,19 +1440,56 @@ class cloudapi_machines(BaseActor):
         machineId = int(machineId)
         return self.models.vmachine.get(machineId)
 
+    def _schedule_task(self, machineId, method, init_status, transition_status, **kwargs):
+        StatusHandler(
+            self.models.vmachine, machineId, init_status
+        ).update_status(transition_status)
+        action = ObjectQueue.get_instance().queue(
+            self.models.vmachine.cat,
+            machineId,
+            self._RETRY_COUNT,
+            method,
+            machineId,
+            **kwargs
+        )
+        try:
+            result = action.get_result()
+        except:
+            StatusHandler(
+                self.models.vmachine, machineId, transition_status
+            ).rollback_status(init_status)
+                
+            self.get(machineId)
+            raise
+    
+        return result
+
     @authenticator.auth(acl={"cloudspace": set("X")})
+    @RequireState(
+        resourcestatus.Machine.DELETED,
+        "Can only restore machine in state DELETED",
+        False
+    )    
     def restore(self, machineId, reason, **kwargs):
         """
         Restore a deleted machine
 
         :param machineId: id of the machine
         """
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._restore,
+            init_status=resourcestatus.Machine.DELETED,
+            transition_status=resourcestatus.Machine.RESTORING,
+            reason=reason,
+            **kwargs
+        )
+
+    def _restore(self, machineId, reason, **kwargs):
         machine = self.models.vmachine.searchOne({"id": int(machineId)})
         if not machine:
             raise exceptions.NotFound("Machine ID %s was not found" % machineId)
         cloudspace = self.models.cloudspace.get(machine["cloudspaceId"])
-        if machine["status"] != resourcestatus.Machine.DELETED:
-            raise exceptions.BadRequest("Can't restore a non deleted machine")
         if (
             cloudspace.status in resourcestatus.Cloudspace.INVALID_STATES
             and "csrestore" not in kwargs
@@ -1288,34 +1497,50 @@ class cloudapi_machines(BaseActor):
             raise exceptions.BadRequest(
                 "Cannot restore a machine on a deleted cloudspace"
             )
-        with self.models.account.lock(cloudspace.accountId):
+        # set disks to transition status
+        for disk in machine["disks"]:
+            StatusHandler(self.models.disk, disk, resourcestatus.Disk.DELETED).update_status(resourcestatus.Disk.RESTORING_ATTACHED_DISK)
+        try:
             vcpus = machine["vcpus"]
             memory = machine["memory"]
-            diskids = machine["disks"]
             totaldisksize = 0
-            for diskid in diskids:
+            for diskid in machine["disks"]:
                 disk = self.models.disk.get(diskid)
                 totaldisksize += disk.sizeMax
             j.apps.cloudapi.cloudspaces.checkAvailableMachineResources(
                 machine["cloudspaceId"], vcpus, memory / 1024.0, totaldisksize
             )
 
-            nic = machine["nics"][0]
-            nic["type"] = "bridge"
-            nic["ipAddress"] = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
-            machine["status"] = resourcestatus.Machine.HALTED
-            machine["updateTime"] = int(time.time())
-            machine["deletionTime"] = 0
-            self.models.vmachine.set(machine)
-        gevent.spawn(
-            self.cb.cloudspace.update_firewall,
-            cloudspace,
-            ctx=j.core.portal.active.requestContext,
-        )
-        self.models.disk.updateSearch(
-            {"id": {"$in": machine["disks"]}},
-            {"$set": {"status": resourcestatus.Disk.CREATED}},
-        )
+            nics = machine["nics"]
+            nic_bridge = [nic for nic in nics if nic["type"] == "bridge"]
+            if nic_bridge:
+                nic_bridge[0]['ipAddress'] = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
+
+            gevent.spawn(
+                self.cb.cloudspace.update_firewall,
+                cloudspace,
+                ctx=j.core.portal.active.requestContext,
+            )
+            self.models.vmachine.updateSearch(
+                {"id": machine["id"]},
+                {"$set": {"nics":  nics}},
+            )
+            for disk in machine["disks"]:
+                StatusHandler(self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK).update_status(resourcestatus.Disk.ASSIGNED)
+            StatusHandler(self.models.vmachine, machineId, resourcestatus.Machine.RESTORING).update_status(resourcestatus.Machine.HALTED)
+        except:
+            for disk in machine["disks"]:
+                StatusHandler(self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK).rollback_status(resourcestatus.Disk.DELETED)
+            StatusHandler(self.models.vmachine, machineId, resourcestatus.Machine.RESTORING).rollback_status(resourcestatus.MAchine.DELETED)
+            raise
+            
+        # with self.models.account.lock(cloudspace.accountId):
+
+        #     # machine["status"] = resourcestatus.Machine.HALTED
+        #     machine["updateTime"] = int(time.time())
+        #     machine["deletionTime"] = 0
+        #     self.models.vmachine.set(machine)
+
         return True
 
     @authenticator.auth(acl={"machine": set("C")})
@@ -1563,7 +1788,9 @@ class cloudapi_machines(BaseActor):
                 continue
             clonenic = clone.new_nic()
             clonenic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
-            clonenic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(cloudspace.gid)
+            clonenic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(
+                cloudspace.gid
+            )
             clonenic.deviceName = "spc-{:04x}".format(cloudspace.networkId)
             clonenic.type = "bridge"
 
@@ -1596,7 +1823,7 @@ class cloudapi_machines(BaseActor):
             volumes = provider.ex_clone_disks(diskmapping, disks_snapshots or {})
             self.cb.machine.update_volumes(clone, volumes)
             self.models.vmachine.set(clone)
-            self.start(clone.id)
+            self._start(clone.id)
         except:
             self.cb.machine.cleanup(clone)
             raise

@@ -10,6 +10,7 @@ from CloudscalerLibcloud.compute.drivers.libvirt_driver import (
     PhysicalVolume,
 )
 from cloudbrokerlib import enums, network, resourcestatus
+from cloudbrokerlib.statushandler import StatusHandler
 from CloudscalerLibcloud.utils.connection import CloudBrokerConnection
 from CloudscalerLibcloud.utils.gridconfig import GridConfig
 from .netmgr import NetManager
@@ -270,10 +271,8 @@ class CloudBroker(object):
             enums.MachineStatusMap.getByValue(node.state, drivertype) or machine.status
         )
         if realstatus != machine.status:
-            if realstatus == resourcestatus.Machine.DESTROYED:
-                realstatus = resourcestatus.Machine.HALTED
-            machine.status = realstatus
-            models.vmachine.set(machine)
+            if machine.status not in resourcestatus.Machine.TRANSITION_STATES:
+                models.vmachine.updateSearch({"id": machine.id}, {"$set": {"status": realstatus}})
         return provider, node, machine
 
     def chooseStack(self, machine):
@@ -748,7 +747,7 @@ class Machine(object):
             metadata = {"admin_pass": defaultuserpassword, "hostname": hostname}
         return userdata, metadata
 
-    def deploy_disks(self, cloudspace, machine, disksize, datadisks, image):
+    def deploy_disks(self, cloudspace, machine, disksize, datadisks, image, ctx):
         datadisks = datadisks or []
         vmid = "vm-{}".format(machine.id)
         disk, volume = j.apps.cloudapi.disks.create_disk(
@@ -762,9 +761,15 @@ class Machine(object):
             imageId=image.id,
             order=0,
         )
-        models.vmachine.updateSearch(
-            {"id": machine.id}, {"$addToSet": {"disks": disk.id}}
-        )
+        def update_models(diskId):
+            models.vmachine.updateSearch(
+                {"id": machine.id}, {"$addToSet": {"disks": diskId}}
+            )
+            models.disk.updateSearch(
+                {"id": diskId}, {"$set": {"status": resourcestatus.Disk.ASSIGNED}}
+            )
+        update_models(disk.id)
+
         diskoffset = 1
         if cloudspace.type == "routeros":
             password = None
@@ -793,9 +798,7 @@ class Machine(object):
                     order=1,
                     cloudinitdata=cloudinitdata,
                 )
-                models.vmachine.updateSearch(
-                    {"id": machine.id}, {"$addToSet": {"disks": disk.id}}
-                )
+                update_models(disk.id)               
 
             # create metadata
         for order, datadisk in enumerate(datadisks):
@@ -810,9 +813,9 @@ class Machine(object):
                 iops=DEFAULTIOPS,
                 order=order,
             )
-            models.vmachine.updateSearch(
-                {"id": machine.id}, {"$addToSet": {"disks": disk.id}}
-            )
+            update_models(disk.id)               
+
+
 
     def createModel(
         self, name, description, cloudspace, imageId, sizeId, vcpus, memory, userdata
@@ -865,14 +868,16 @@ class Machine(object):
             )
             account.password = passwd
         with models.cloudspace.lock("{}_ip".format(cloudspace.id)):
+            machine.id = models.vmachine.set(machine)[0]
             nic = machine.new_nic()
             nic.type = "bridge"
-            nic.deviceName = "spc-{:04x}".format(cloudspace.networkId)
+            nic.deviceName = "vm-{}-{:04x}".format(machine.id, cloudspace.networkId)
             nic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
             nic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(
                 cloudspace.gid
             )
-            machine.id = models.vmachine.set(machine)[0]
+            models.vmachine.set(machine)
+            
         return machine
 
     def update_volumes(self, machine, volumes):

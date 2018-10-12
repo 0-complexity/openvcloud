@@ -8,10 +8,11 @@ NAME_MAP = {
     "account": "Account",
     "image": "Image",
     "node": "Node",
+    "disk": "Disk"
 }
 
 class StatusHandler(object):
-    def __init__(self, model, object_id):
+    def __init__(self, model, object_id, status=None):
         """ :param model: collection, example cb.models.vmachine
             :param object_id: id on the object in the collection @model
         """
@@ -19,19 +20,20 @@ class StatusHandler(object):
         self.model = model
         self.category = NAME_MAP[model.cat]
         self.object_class = getattr(resourcestatus, self.category)
-        self.status = self.get_status()
+        self.status = status if status else self.get_status()
 
     def get_status(self):
-        obj = self.model.search({"id": self.id})
-        if obj[0] != 1:
+        query = {"id": self.id}
+        obj = self.model.searchOne({"$query": query, "$fields": ["status"]})
+        if not obj:
             raise exceptions.BadRequest(
-                "Exactly one {} with id {} is expected, found {}".format(
-                    self.category, self.id, obj[0]
+                "Exactly one {} with id {} is expected".format(
+                    self.category, self.id
                 )
             )
-        return obj[1]["status"]
+        return obj["status"]
 
-    def update_status(self, target_status):
+    def update_status(self,  target_status):
         """ update status of an object in db
             
             :param object_id: id of the object
@@ -69,8 +71,8 @@ class StatusHandler(object):
     def validate_transition(self, target_status):
         if target_status not in self.object_class.ALLOWED_TRANSITIONS[self.status]:
             raise exceptions.BadRequest(
-                '{} in state {} cannot update to state {}'.format(
-                    self.category, self.status, target_status
+                '{} {} in state {} cannot update to state {}'.format(
+                    self.category, self.id, self.status, target_status
                 )
             )
         return True
@@ -90,8 +92,8 @@ class StatusHandler(object):
             if status_lookup == previous_status and self.status in self.object_class.ALLOWED_TRANSITIONS[status_lookup]:
                 return True
         raise exceptions.BadRequest(
-            '{} in state {} cannot roll back to state {}'.format(
-                self.category, self.status, previous_status
+            '{} {} in state {} cannot roll back to state {}'.format(
+                self.category, self.id, self.status, previous_status
             )
         )
 

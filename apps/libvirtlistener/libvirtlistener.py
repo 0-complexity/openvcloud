@@ -2,8 +2,11 @@ from JumpScale import j
 import time
 import libvirt
 
+from cloudbrokerlib import resourcestatus
+
 
 def main():
+    
     ccl = j.clients.osis.getNamespace("cloudbroker")
     scl = j.clients.osis.getNamespace("system")
     pcl = j.clients.portal.getByInstance("main")
@@ -58,27 +61,27 @@ def main():
                 print("Updating state for vm {} to {}".format(name, newstate))
                 # update the state if its not destroyed already
                 update = ccl.vmachine.updateSearch(
-                    {"id": vm["id"], "status": {"$nin": ["DELETED", "DESTROYED"]}},
+                    {"id": vm["id"], "status": {"$nin": [resourcestatus.Machine.TRANSITION_STATES]}},
                     {"$set": {"status": newstate}},
                 )
-                if newstate == "HALTED" and update["nModified"] == 1:
-                    # check if lock exists on vm
-                    lockname = "cloudbroker_vmachine_{}".format(vm["id"])
-                    if not scl.lock.exists(lockname):
-                        # no action lock and we change status we should create and audit for this case
-                        audit = scl.audit.new()
-                        audit.user = "Operation System Action"
-                        audit.tags = get_vm_tags(vm)
-                        audit.statuscode = 200
-                        audit.call = "/restmachine/cloudapi/machines/stop"
-                        audit.timestamp = time.time()
-                        audit.responsetime = 0
-                        audit.args = "null"
-                        audit.kwargs = "null"
-                        audit.result = "null"
-                        scl.audit.set(audit)
-                        cloudspace = ccl.cloudspace.get(vm["cloudspaceId"])
-                        j.system.ovsnetconfig.cleanupIfUnused(cloudspace.networkId)
+                if update["nModified"] == 1:
+                    # no action lock and we change status we should create and audit for this case
+                    audit = scl.audit.new()
+                    audit.user = "Operation System Action"
+                    audit.tags = get_vm_tags(vm)
+                    audit.statuscode = 200
+                    audit.call = "/restmachine/cloudapi/machines/stop"
+                    audit.timestamp = time.time()
+                    audit.responsetime = 0
+                    audit.args = "null"
+                    audit.kwargs = "null"
+                    audit.result = "null"
+                    scl.audit.set(audit)
+                    cloudspace = ccl.cloudspace.get(vm["cloudspaceId"])
+                    j.system.ovsnetconfig.cleanupIfUnused(cloudspace.networkId)
+                else:
+                    print("Filed to update state for vm {} due to ongoing transition".format(name))
+
 
     rocon.domainEventRegisterAny(
         None, libvirt.VIR_DOMAIN_EVENT_ID_LIFECYCLE, callback, rocon
