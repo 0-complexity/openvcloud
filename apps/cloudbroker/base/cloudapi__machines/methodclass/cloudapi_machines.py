@@ -17,8 +17,8 @@ from CloudscalerLibcloud.utils import ovf
 
 
 class RequireState(object):
-    def __init__(self, state, msg, refresh=True):
-        self.state = state
+    def __init__(self, states, msg, refresh=True):
+        self.states = states if isinstance(states, list) else [states]
         self.msg = msg
         self.refresh = refresh
 
@@ -33,7 +33,7 @@ class RequireState(object):
             if self.refresh:
                 machine = s.get(machineId)
             
-            if not machine["status"] == self.state:
+            if not machine["status"] in self.states:
                 raise exceptions.Conflict(self.msg)
             return func(s, **kwargs)
 
@@ -179,7 +179,10 @@ class cloudapi_machines(BaseActor):
 
     @authenticator.auth(acl={"machine": set("X")})
     @RequireState(
-        resourcestatus.Machine.RUNNING,
+        [
+            resourcestatus.Machine.RUNNING,
+            resourcestatus.Machine.PAUSED,
+        ],
         "Action STOP can be executed only on RUNNING Machine",
         True
     )
@@ -189,10 +192,12 @@ class cloudapi_machines(BaseActor):
 
         :param machineId: id of the machine
         """
+        init_status = StatusHandler(self.models.vmachine, machineId).status
+
         return self._schedule_task(
             machineId=machineId,
             method=self._stop,
-            init_status=resourcestatus.Machine.RUNNING,
+            init_status=init_status,
             transition_status=resourcestatus.Machine.STOPPING,
             **kwargs
         )
@@ -211,6 +216,14 @@ class cloudapi_machines(BaseActor):
 
 
     @authenticator.auth(acl={"machine": set("X")})
+    @RequireState(
+        [
+            resourcestatus.Machine.RUNNING,
+            resourcestatus.Machine.PAUSED
+        ],
+        "Action REBOOT can be executed only on RUNNING or PAUSED Machine",
+        True
+    )    
     def reboot(self, machineId, **kwargs):
         """
         Reboot the machine
@@ -229,9 +242,16 @@ class cloudapi_machines(BaseActor):
             **kwargs
         )
 
-        
 
     @authenticator.auth(acl={"machine": set("X")})
+    @RequireState(
+        [
+            resourcestatus.Machine.RUNNING,
+            resourcestatus.Machine.PAUSED
+        ],
+        "Action RESET can be executed only on RUNNING or PAUSED Machine",
+        True
+    )
     def reset(self, machineId, **kwargs):
         """
         Reset the machine, force reboot
@@ -1533,13 +1553,6 @@ class cloudapi_machines(BaseActor):
                 StatusHandler(self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK).rollback_status(resourcestatus.Disk.DELETED)
             StatusHandler(self.models.vmachine, machineId, resourcestatus.Machine.RESTORING).rollback_status(resourcestatus.MAchine.DELETED)
             raise
-            
-        # with self.models.account.lock(cloudspace.accountId):
-
-        #     # machine["status"] = resourcestatus.Machine.HALTED
-        #     machine["updateTime"] = int(time.time())
-        #     machine["deletionTime"] = 0
-        #     self.models.vmachine.set(machine)
 
         return True
 
