@@ -183,7 +183,6 @@ class CloudspaceTests(BasicACLTest):
 
         self.lg("%s ENDED" % self._testID)
 
-    @unittest.skip("https://github.com/0-complexity/openvcloud/issues/1039")
     def test004_disable_cloudspace(self):
         """ OVC-04x
         *Test case for test disable cloudspace.*
