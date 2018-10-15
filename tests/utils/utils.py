@@ -74,15 +74,12 @@ class API(object):
 class BaseTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         self.api = API()
-        self.environment = config["main"]["environment"]
+        self.environment = config["main"]["location"]
         self.environment_url = config["main"]["url"]
         self.protocol = config["main"]["protocol"]
         self.owncloud_user = config["main"]["owncloud_user"]
         self.owncloud_password = config["main"]["owncloud_password"]
         self.owncloud_url = config["main"]["owncloud_url"]
-
-        self.test_email = config["main"]["email"]
-        self.email_password = config["main"]["email_password"]
         super(BaseTest, self).__init__(*args, **kwargs)
 
     def setUp(self):
@@ -265,7 +262,7 @@ class BaseTest(unittest.TestCase):
         return SESSION_DATA["cloudspaceid"]
 
     def get_location(self):
-        env_location = config["main"]["environment"]
+        env_location = config["main"]["location"]
         self.assertTrue(env_location)
         locations = self.api.cloudapi.locations.list()
         self.assertTrue(locations)

@@ -17,6 +17,8 @@ from tests.ovc_master_hosted.Portal.framework import xpath
 import os
 from selenium.webdriver.common.keys import Keys
 import requests
+from selenium.webdriver.chrome.options import Options
+
 
 
 class BaseTest(unittest.TestCase):
@@ -24,7 +26,7 @@ class BaseTest(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.environment_url = config["main"]["env"]
+        self.environment_url = config["main"]["url"]
         self.environment_storage = config["main"]["location"]
         self.admin_username = config["main"]["admin"]
         self.admin_password = config["main"]["passwd"]
@@ -128,7 +130,9 @@ class BaseTest(unittest.TestCase):
 
     def set_browser(self):
         if self.browser == "chrome":
-            self.driver = webdriver.Chrome()
+            options = Options()
+            options.add_argument('--no-sandbox')
+            self.driver = webdriver.Chrome(chrome_options=options)
         elif self.browser == "firefox":
             self.driver = webdriver.Firefox()
         elif self.browser == "ie":

@@ -25,16 +25,17 @@ LOGFILE="/tmp/${CI_JOB_NAME}_${CI_PIPELINE_ID}.log"
 if [[ ${TESTSUITE} == "acl" ]] || [[ ${TESTSUITE} == "ovc" ]]; then
 
     export PYTHONPATH=/opt/jumpscale7/lib:/opt/jumpscale7/lib/lib-dynload/:/opt/jumpscale7/bin:/opt/jumpscale7/lib/python.zip:/opt/jumpscale7/lib/plat-x86_64-linux-gnu
-    nosetests-2.7 -s -v --logging-level=WARNING ${TESTS_PATH} --tc-file config.ini --tc=main.url:${url} --tc=main.environment:${environment} --tc=main.protocol:${protocol} 2>&1 | tee ${LOGFILE}
+    nosetests-2.7 -s -v --logging-level=WARNING ${TESTS_PATH} --tc-file config.ini \
+    --tc=main.url:${url} --tc=main.location:${location} --tc=main.owncloud_url:${owncloud_url} \
+    --tc=main.owncloud_user:${owncloud_user} --tc=main.owncloud_password:${owncloud_password} \
+    --tc=main.protocol:${protocol} 2>&1 | tee ${LOGFILE}
 
 elif [[ ${TESTSUITE} == "portal" ]]; then
 
     cd ovc_master_hosted/Portal
-    export PYTHONPATH=./
-    su - test -c "cd /opt/code/github/0-complexity/openvcloud/tests/ovc_master_hosted/Portal;\
-    xvfb-run -a nosetests -s -v --logging-level=WARNING ${TESTS_PATH} --tc-file config.ini --tc=main.env:${url} \
-    --tc=main.location:${environment} --tc=main.admin:${admin} --tc=main.passwd:${passwd} \
-    --tc=main.secret:${secret} --tc=main.browser:chrome 2>&1 | tee ${LOGFILE}" 
+    xvfb-run -a nosetests-3.4 -s -v --logging-level=WARNING ${TESTS_PATH} --tc-file config.ini \
+    --tc=main.url:${url} --tc=main.location:${location} --tc=main.admin:${admin} \
+    --tc=main.passwd:${passwd} --tc=main.secret:${secret} --tc=main.browser:chrome 2>&1 | tee ${LOGFILE}
 
 else
     echo "Invalid testsuite name"
