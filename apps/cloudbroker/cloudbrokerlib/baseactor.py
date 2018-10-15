@@ -10,11 +10,7 @@ class BaseActor(object):
         self.cb = cloudbroker.CloudBroker()
         self.models = cloudbroker.models
         self.sysmodels = cloudbroker.sysmodels
-        if self.__class__.__name__.startswith("cloudapi"):
-            packagename = "cloudbroker"
-        elif self.__class__.__name__.startswith("cloudbroker"):
-            packagename = "cbportal"
-        self.hrd = j.atyourservice.get(name=packagename, instance="main").hrd
+        self.config = j.core.config.get('openvcloud', 'main')
 
 
 def wrap_remote(func):

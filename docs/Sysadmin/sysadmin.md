@@ -3,7 +3,6 @@
 * [Account & User Management](UserManagement/user_management.md)
 * [Connect to an Environment](Connect/connect.md)
 * [Preparing for indirect access to ovc_git](Connect/preparing_for_indirect_access.md)
-* [OpenvCloud File Locations](FileLocations/file_locations.md)
 * [Create a New Windows Image](Images/Creating_new_Windwos_Image.md)
 * [Deploy a New Image](Images/deploy_new_image.md)
 * [Putting a Node in Maintenance Mode](Maintenance/putting_node_in_maintenance_mode.md)

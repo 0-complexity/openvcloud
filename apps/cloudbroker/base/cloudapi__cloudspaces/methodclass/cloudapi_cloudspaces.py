@@ -25,11 +25,6 @@ class cloudapi_cloudspaces(BaseActor):
         self.libvirt_actor = j.apps.libcloud.libvirt
         self.netmgr = self.cb.netmgr
         self.network = network.Network(self.models)
-        self._minimum_days_of_credit_required = float(
-            self.hrd.get(
-                "instance.openvcloud.cloudbroker.creditcheck.daysofcreditrequired"
-            )
-        )
 
     @authenticator.auth(acl={"cloudspace": set("U")})
     def addUser(self, cloudspaceId, userId, accesstype, explicit=True, **kwargs):
@@ -1188,7 +1183,7 @@ class cloudapi_cloudspaces(BaseActor):
 
         pwd = str(uuid.uuid4())
         self.netmgr.fw_set_password(fwid, "admin", pwd)
-        urllocation = self.hrd.get("instance.openvcloud.cloudbroker.defense_proxy")
+        urllocation = self.config.get("defense_proxy")
         location = self.models.location.search({"gid": cloudspace.gid})[1]
 
         url = "%s/ovcinit/%s/%s" % (

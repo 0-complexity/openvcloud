@@ -8,12 +8,12 @@ from JumpScale.portal.portal import Validators
 from cloudbrokerlib import resourcestatus
 
 
-def _send_signup_mail(hrd, **kwargs):
-    notifysupport = hrd.get("instance.openvcloud.cloudbroker.notifysupport")
+def _send_signup_mail(config, **kwargs):
+    notifysupport = config.get("notifysupport", False)
     toaddrs = [kwargs["email"]]
 
-    fromaddr = hrd.get("instance.openvcloud.supportemail")
-    if notifysupport == "1":
+    fromaddr = config.get("supportemail")
+    if notifysupport:
         toaddrs.append(fromaddr)
 
     message = j.core.portal.active.templates.render(
@@ -157,7 +157,7 @@ class cloudbroker_account(BaseActor):
             kwargs["ctx"].env["tags"] += " accountId:{}".format(accountid)
 
             if emailaddress:
-                _send_signup_mail(hrd=self.hrd, **mail_args)
+                _send_signup_mail(config=self.config, **mail_args)
 
             return accountid
 

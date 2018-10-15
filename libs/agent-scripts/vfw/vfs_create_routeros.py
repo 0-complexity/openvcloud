@@ -67,7 +67,7 @@ def action(vfw):
     import uuid
     import os
 
-    hrd = j.atyourservice.get(name="vfwnode", instance="main").hrd
+    config = j.core.config.get("routeros", "main")
     networkid = vfw['id']
     publicnet = netaddr.IPNetwork(vfw['external']['ips'][0])
     publicip = str(publicnet.ip)
@@ -77,10 +77,10 @@ def action(vfw):
     privatenetwork = vfw['privatenetwork']
     vlan = vfw['external']['vlan']
 
-    netrange = hrd.get("instance.vfw.netrange.internal")
-    defaultpasswd = hrd.get("instance.vfw.admin.passwd")
-    username = hrd.get("instance.vfw.admin.login")
-    newpassword = hrd.get("instance.vfw.admin.newpasswd")
+    netrange = config["netrange_internal"]
+    defaultpasswd = config["password"]
+    username = config["login"]
+    newpassword = str(uuid.uuid4())
     bridgename = j.system.ovsnetconfig.getVlanBridge(vlan)
     destinationfile = None
 

@@ -5,12 +5,11 @@ def main(j, args, params, tags, tasklet):
     from cloudbrokerlib.cloudbroker import db
     params.result = page = args.page
     cloudspaceId = int(args.getTag("cloudspaceId"))
-    actors = j.apps.cloudbroker.iaas.cb.actors.cloudapi
 
     cloudspace = db.cloudbroker.cloudspace.get(cloudspaceId)
     stacks = db.cloudbroker.stack.search({"gid": cloudspace.gid, "status": "ENABLED"})[1:]
 
-    images = actors.images.list(
+    images = j.apps.cloudapi.images.list(
         accountId=cloudspace.accountId, cloudspaceId=cloudspace.id
     )
     dropimages = list()

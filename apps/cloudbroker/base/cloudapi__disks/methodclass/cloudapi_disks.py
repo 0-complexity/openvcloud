@@ -18,14 +18,6 @@ class cloudapi_disks(BaseActor):
 
     """
 
-    def __init__(self):
-        super(cloudapi_disks, self).__init__()
-        self._minimum_days_of_credit_required = float(
-            self.hrd.get(
-                "instance.openvcloud.cloudbroker.creditcheck.daysofcreditrequired"
-            )
-        )
-
     def getStorageVolume(self, disk, provider, node=None):
         if not isinstance(disk, dict):
             disk = disk.dump()

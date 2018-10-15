@@ -380,7 +380,7 @@ class cloudapi_machines(BaseActor):
                 image.size,
                 "templates/{}_{}".format(machineId, templateName),
                 vpool="vmstor",
-                type="C"
+                type="C",
             )
             image_path = provider.ex_create_template(
                 node, templateName, volume.vdiskguid
@@ -422,7 +422,7 @@ class cloudapi_machines(BaseActor):
     def _sendImportCompletionMail(
         self, name, emailaddress, link, success=True, error=False
     ):
-        fromaddr = self.hrd.get("instance.openvcloud.supportemail")
+        fromaddr = self.config["supportemail"]
         if isinstance(emailaddress, list):
             toaddrs = emailaddress
         else:
@@ -447,7 +447,7 @@ class cloudapi_machines(BaseActor):
         j.clients.email.send(toaddrs, fromaddr, subject, message, files=None)
 
     def _sendExportCompletionMail(self, name, emailaddress, success=True, error=False):
-        fromaddr = self.hrd.get("instance.openvcloud.supportemail")
+        fromaddr = self.config["supportemail"]
         if isinstance(emailaddress, list):
             toaddrs = emailaddress
         else:
@@ -468,7 +468,7 @@ class cloudapi_machines(BaseActor):
     def _sendCreateTemplateCompletionMail(
         self, name, emailaddress, success=True, error=False, eco=""
     ):
-        fromaddr = self.hrd.get("instance.openvcloud.supportemail")
+        fromaddr = self.config["supportemail"]
         if isinstance(emailaddress, list):
             toaddrs = emailaddress
         else:
@@ -1543,7 +1543,9 @@ class cloudapi_machines(BaseActor):
                     disks_snapshots[snapshot["diskguid"]] = snapshot["guid"]
 
         try:
-            userdata, metadata = self.cb.machine.get_user_meta_data(clone.name, password, image.type)
+            userdata, metadata = self.cb.machine.get_user_meta_data(
+                clone.name, password, image.type
+            )
             node = provider.ex_clone(
                 userdata,
                 metadata,

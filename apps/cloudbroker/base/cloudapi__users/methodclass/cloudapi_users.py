@@ -227,7 +227,7 @@ class cloudapi_users(BaseActor):
         :return: True if email was was successfully sent
         """
         # Build up message subject, body and send it
-        fromaddr = self.hrd.get("instance.openvcloud.supportemail")
+        fromaddr = self.config["supportemail"]
         toaddrs = [emailaddress]
 
         if resourcetype.lower() == "account":

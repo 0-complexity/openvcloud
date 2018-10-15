@@ -121,26 +121,6 @@ class CloudBroker(object):
 
         return models.image.get(imageId)
 
-    @property
-    def actors(self):
-        ctx = j.core.portal.active.requestContext
-        hrd = j.application.getAppInstanceHRD(
-            name="portal_client", instance="cloudbroker"
-        )
-        addr = hrd.get("instance.param.addr")
-        port = hrd.getInt("instance.param.port")
-        cl = j.clients.portal.get2(ip=addr, port=port)
-        oldauth = ctx.env.get("HTTP_AUTHORIZATION", None)
-        if oldauth is not None:
-            cl._session.headers.update({"Authorization": oldauth})
-        elif ctx.env.get("HTTP_COOKIE", None):
-            cookie = ctx.env.get("HTTP_COOKIE", None)
-            cl._session.headers.update({"Cookie": cookie})
-        elif "authkey" in ctx.params:
-            secret = ctx.params["authkey"]
-            cl._session.headers.update({"Authorization": "authkey {}".format(secret)})
-        return cl
-
     def getProviderByStackId(self, stackId):
         return CloudProvider(stackId)
 

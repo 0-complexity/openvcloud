@@ -28,8 +28,8 @@ def action(networkid, sourceip, vlan, externalip):
     except:
         source_con = None
     network = Network()
-    hrd = j.atyourservice.get(name="vfwnode", instance="main").hrd
-    netrange = hrd.get("instance.vfw.netrange.internal")
+    config = j.core.config.get("routeros", "main")
+    netrange = config["netrange_internal"]
     internalip = str(
         netaddr.IPAddress(netaddr.IPNetwork(netrange).first + int(networkid))
     )
