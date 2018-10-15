@@ -25,14 +25,14 @@ class RequireState(object):
     def __call__(self, func):
         def wrapper(s, **kwargs):
             machineId = int(kwargs["machineId"])
-            machine = s.models.vmachine.searchOne({'id': machineId})
+            machine = s.models.vmachine.searchOne({"id": machineId})
             if not machine:
                 raise exceptions.NotFound(
                     "Machine with id %s was not found" % machineId
                 )
             if self.refresh:
                 machine = s.get(machineId)
-            
+
             if not machine["status"] in self.states:
                 raise exceptions.Conflict(self.msg)
             return func(s, **kwargs)
@@ -47,7 +47,7 @@ class cloudapi_machines(BaseActor):
     """
 
     # default retry count
-    _RETRY_COUNT = 3
+    _RETRY_COUNT = 1
 
     def __init__(self):
         super(cloudapi_machines, self).__init__()
@@ -55,42 +55,40 @@ class cloudapi_machines(BaseActor):
         self.netmgr = self.cb.netmgr
         self.acl = self.cb.agentcontroller
 
-
     def _action(
-            self, machineId, actiontype, newstatus=None, provider=None, node=None, **kwargs
-        ):
-            """
+        self, machineId, actiontype, newstatus=None, provider=None, node=None, **kwargs
+    ):
+        """
             Perform a action on a machine, supported types are STOP, START, PAUSE, RESUME, REBOOT
             param:machineId id of the machine
             param:actiontype type of the action(e.g stop, start, ...)
             result bool
             """
-            if provider is None or node is None:
-                provider, node, machine = self.cb.getProviderAndNode(machineId)
-            else:
-                machine = self.models.vmachine.get(machineId)
-            if machine.type != "VIRTUAL":
+        if provider is None or node is None:
+            provider, node, machine = self.cb.getProviderAndNode(machineId)
+        else:
+            machine = self.models.vmachine.get(machineId)
+        if machine.type != "VIRTUAL":
+            raise exceptions.BadRequest(
+                "Action %s is not supported on machine %s" % (actiontype, machineId)
+            )
+        if node.extra.get("locked", False):
+            raise exceptions.Conflict("Can not %s a locked Machine" % actiontype)
+        node.extra.update({"machineId": machineId})
+        actionname = "%s_node" % actiontype.lower()
+        method = getattr(provider, actionname, None)
+        if not method:
+            method = getattr(provider, "ex_%s" % actionname.lower(), None)
+            if not method:
                 raise exceptions.BadRequest(
                     "Action %s is not supported on machine %s" % (actiontype, machineId)
                 )
-            if node.extra.get("locked", False):
-                raise exceptions.Conflict("Can not %s a locked Machine" % actiontype)
-            node.extra.update({"machineId": machineId})
-            actionname = "%s_node" % actiontype.lower()
-            method = getattr(provider, actionname, None)
-            if not method:
-                method = getattr(provider, "ex_%s" % actionname.lower(), None)
-                if not method:
-                    raise exceptions.BadRequest(
-                        "Action %s is not supported on machine %s"
-                        % (actiontype, machineId)
-                    )
-            result = method(node, **kwargs)
-            if newstatus and newstatus != machine.status:
-                StatusHandler(
-                    self.models.vmachine, machine.id, machine.status
-                ).update_status(newstatus)
-            return result
+        result = method(node, **kwargs)
+        if newstatus and newstatus != machine.status:
+            StatusHandler(
+                self.models.vmachine, machine.id, machine.status
+            ).update_status(newstatus)
+        return result
 
     def _get_boot_disk(self, machine):
         bootdisk = None
@@ -106,7 +104,7 @@ class cloudapi_machines(BaseActor):
     @RequireState(
         resourcestatus.Machine.HALTED,
         "Action START can be executed only on HALTED Machine",
-        True
+        True,
     )
     def start(self, machineId, **kwargs):
         return self._schedule_task(
@@ -175,16 +173,11 @@ class cloudapi_machines(BaseActor):
             node=node,
         )
 
-
-
     @authenticator.auth(acl={"machine": set("X")})
     @RequireState(
-        [
-            resourcestatus.Machine.RUNNING,
-            resourcestatus.Machine.PAUSED,
-        ],
+        [resourcestatus.Machine.RUNNING, resourcestatus.Machine.PAUSED],
         "Action STOP can be executed only on RUNNING Machine",
-        True
+        True,
     )
     def stop(self, machineId, force=False, **kwargs):
         """
@@ -209,21 +202,17 @@ class cloudapi_machines(BaseActor):
             tags.tagDelete("cdrom")
             self.models.vmachine.updateSearch(
                 {"id": machine.id}, {"$set": {"tags": tags.tagstring}}
-            )            
+            )
         return self._action(
             machineId, "stop", resourcestatus.Machine.HALTED, force=force, **kwargs
         )
 
-
     @authenticator.auth(acl={"machine": set("X")})
     @RequireState(
-        [
-            resourcestatus.Machine.RUNNING,
-            resourcestatus.Machine.PAUSED
-        ],
+        [resourcestatus.Machine.RUNNING, resourcestatus.Machine.PAUSED],
         "Action REBOOT can be executed only on RUNNING or PAUSED Machine",
-        True
-    )    
+        True,
+    )
     def reboot(self, machineId, **kwargs):
         """
         Reboot the machine
@@ -242,15 +231,11 @@ class cloudapi_machines(BaseActor):
             **kwargs
         )
 
-
     @authenticator.auth(acl={"machine": set("X")})
     @RequireState(
-        [
-            resourcestatus.Machine.RUNNING,
-            resourcestatus.Machine.PAUSED
-        ],
+        [resourcestatus.Machine.RUNNING, resourcestatus.Machine.PAUSED],
         "Action RESET can be executed only on RUNNING or PAUSED Machine",
-        True
+        True,
     )
     def reset(self, machineId, **kwargs):
         """
@@ -268,13 +253,11 @@ class cloudapi_machines(BaseActor):
             actiontype="hard_reboot",
             newstatus=resourcestatus.Machine.RUNNING,
             **kwargs
-        )        
-
+        )
 
     @authenticator.auth(acl={"machine": set("X")})
     @RequireState(
-        resourcestatus.Machine.RUNNING,
-        "Can only pause machine in state RUNNING",
+        resourcestatus.Machine.RUNNING, "Can only PAUSE machine in state RUNNING"
     )
     def pause(self, machineId, **kwargs):
         """
@@ -292,12 +275,10 @@ class cloudapi_machines(BaseActor):
             **kwargs
         )
 
-
     @authenticator.auth(acl={"machine": set("X")})
     @RequireState(
-        resourcestatus.Machine.PAUSED,
-        "Can only resume machine in state PAUSED",
-    )    
+        resourcestatus.Machine.PAUSED, "Can only RESUME machine in state PAUSED"
+    )
     def resume(self, machineId, **kwargs):
         """
         Resume the machine
@@ -313,7 +294,7 @@ class cloudapi_machines(BaseActor):
             actiontype="resume",
             newstatus=resourcestatus.Machine.RUNNING,
             **kwargs
-        )        
+        )
 
     @authenticator.auth(acl={"cloudspace": set("C")})
     def addDisk(
@@ -338,6 +319,31 @@ class cloudapi_machines(BaseActor):
         :return int, id of the disk
 
         """
+        init_status = StatusHandler(self.models.vmachine, machineId).status
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._addDisk,
+            init_status=init_status,
+            transition_status=resourcestatus.Machine.ADDING_DISK,
+            status_rollback=True,
+            diskName=diskName,
+            description=description,            
+            **kwargs
+        )
+
+    def _addDisk(
+        self,
+        machineId,
+        diskName,
+        description,
+        size=10,
+        type="D",
+        ssdSize=0,
+        iops=2000,
+        **kwargs
+    ):
+
+        import ipdb; ipdb.set_trace()
         provider, node, machine = self.cb.getProviderAndNode(machineId)
         if len(machine.disks) >= 25:
             raise exceptions.BadRequest("Cannot create more than 25 disk on a machine")
@@ -350,7 +356,7 @@ class cloudapi_machines(BaseActor):
             j.apps.cloudapi.cloudspaces.checkAvailableMachineResources(
                 cloudspace.id, vdisksize=size
             )
-            disk, _ = j.apps.cloudapi.disks._create(
+            disk, _ = j.apps.cloudapi.disks.create(
                 accountId=cloudspace.accountId,
                 gid=cloudspace.gid,
                 name=diskName,
@@ -396,6 +402,19 @@ class cloudapi_machines(BaseActor):
         :param diskId: id of disk to attach
         :return: True if disk was attached successfully
         """
+
+        init_status = StatusHandler(self.models.vmachine, machineId).status
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._attachDisk,
+            init_status=init_status,
+            transition_status=resourcestatus.Machine.ATTACHING_DISK,
+            status_rollback=True,
+            disId=diskId,        
+            **kwargs
+        )
+
+    def _attachDisk(self, machineId, diskId, **kwargs):
         provider, node, machine = self.cb.getProviderAndNode(machineId)
         diskId = int(diskId)
         if diskId in machine.disks:
@@ -430,12 +449,16 @@ class cloudapi_machines(BaseActor):
         disk.order = diskorder
         volume = j.apps.cloudapi.disks.getStorageVolume(disk, provider, node)
         provider.attach_volume(node, volume)
-        self.models.disk.updateSearch({"id": disk.id}, {"$set": {"order": diskorder} })
+        self.models.disk.updateSearch({"id": disk.id}, {"$set": {"order": diskorder}})
 
         # add disk to the vm model
         machine.disks.append(disk.id)
-        self.models.vmachine.updateSearch({"id": machine.id}, {"$set": {"disks": machine.disks}})
-        StatusHandler(self.models.disk, disk.id, disk.status).update_status(resourcestatus.Disk.ASSIGNED)
+        self.models.vmachine.updateSearch(
+            {"id": machine.id}, {"$set": {"disks": machine.disks}}
+        )
+        StatusHandler(self.models.disk, disk.id, disk.status).update_status(
+            resourcestatus.Disk.ASSIGNED
+        )
 
         return True
 
@@ -1101,7 +1124,8 @@ class cloudapi_machines(BaseActor):
                 self._RETRY_COUNT,
                 self.cb.machine.cleanup,
                 machine,
-                **kwargs_ctx)
+                **kwargs_ctx
+            )
 
             raise
 
@@ -1199,15 +1223,14 @@ class cloudapi_machines(BaseActor):
 
         return deleting.get_result()
 
-
-    def _delete(self, machineId, permanently=False, **kwargs):        
+    def _delete(self, machineId, permanently=False, **kwargs):
         provider, node, machine = self.cb.getProviderAndNode(machineId)
         if "name" in kwargs and kwargs["name"]:
             if machine.name != kwargs["name"]:
                 raise exceptions.BadRequest("Incorrect machine name specified")
         if node and node.extra.get("locked", False):
             raise exceptions.Conflict("Can not delete a locked Machine")
-        
+
         # get machine disks
         pdisks = self.models.disk.search({"id": {"$in": machine.disks}, "type": "P"})[
             1:
@@ -1229,13 +1252,16 @@ class cloudapi_machines(BaseActor):
             target_status = resourcestatus.Machine.DELETED
             transition_disk_status = resourcestatus.Disk.DELETING_ATTACHED_DISK
             target_disk_status = resourcestatus.Disk.DELETED
-            
+
         if machine.status == target_status:
             return True
 
-        if machine.status == resourcestatus.Machine.DELETED and permanently and provider:
+        if (
+            machine.status == resourcestatus.Machine.DELETED
+            and permanently
+            and provider
+        ):
             return provider.destroy_node(node)
-
 
         vms = self.models.vmachine.search(
             {
@@ -1460,10 +1486,21 @@ class cloudapi_machines(BaseActor):
         machineId = int(machineId)
         return self.models.vmachine.get(machineId)
 
-    def _schedule_task(self, machineId, method, init_status, transition_status, **kwargs):
-        StatusHandler(
-            self.models.vmachine, machineId, init_status
-        ).update_status(transition_status)
+
+    def _schedule_task(
+        self, machineId, method, init_status, transition_status, status_rollback=False, **kwargs
+    ):
+        """ Schedule task on machine
+
+            :param machineId: machine id
+            :param init_state: expected state of machine
+            :param transition_status: transition state of machine that should be set during the action 
+            :param status_rollback: if set to True rollback status to the initial status after the action is succeeded.
+                    used for actions that return machine to the same state, for example attaching/detaching disks.
+        """
+        StatusHandler(self.models.vmachine, machineId, init_status).update_status(
+            transition_status
+        )
         action = ObjectQueue.get_instance().queue(
             self.models.vmachine.cat,
             machineId,
@@ -1478,18 +1515,20 @@ class cloudapi_machines(BaseActor):
             StatusHandler(
                 self.models.vmachine, machineId, transition_status
             ).rollback_status(init_status)
-                
+
             self.get(machineId)
             raise
-    
+        if status_rollback:
+            StatusHandler(self.models.vmachine, machineId, transition_status).rollback_status(init_status)
         return result
+
 
     @authenticator.auth(acl={"cloudspace": set("X")})
     @RequireState(
         resourcestatus.Machine.DELETED,
         "Can only restore machine in state DELETED",
-        False
-    )    
+        False,
+    )
     def restore(self, machineId, reason, **kwargs):
         """
         Restore a deleted machine
@@ -1519,7 +1558,9 @@ class cloudapi_machines(BaseActor):
             )
         # set disks to transition status
         for disk in machine["disks"]:
-            StatusHandler(self.models.disk, disk, resourcestatus.Disk.DELETED).update_status(resourcestatus.Disk.RESTORING_ATTACHED_DISK)
+            StatusHandler(
+                self.models.disk, disk, resourcestatus.Disk.DELETED
+            ).update_status(resourcestatus.Disk.RESTORING_ATTACHED_DISK)
         try:
             vcpus = machine["vcpus"]
             memory = machine["memory"]
@@ -1534,7 +1575,9 @@ class cloudapi_machines(BaseActor):
             nics = machine["nics"]
             nic_bridge = [nic for nic in nics if nic["type"] == "bridge"]
             if nic_bridge:
-                nic_bridge[0]['ipAddress'] = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
+                nic_bridge[0][
+                    "ipAddress"
+                ] = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
 
             gevent.spawn(
                 self.cb.cloudspace.update_firewall,
@@ -1542,16 +1585,23 @@ class cloudapi_machines(BaseActor):
                 ctx=j.core.portal.active.requestContext,
             )
             self.models.vmachine.updateSearch(
-                {"id": machine["id"]},
-                {"$set": {"nics":  nics}},
+                {"id": machine["id"]}, {"$set": {"nics": nics}}
             )
             for disk in machine["disks"]:
-                StatusHandler(self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK).update_status(resourcestatus.Disk.ASSIGNED)
-            StatusHandler(self.models.vmachine, machineId, resourcestatus.Machine.RESTORING).update_status(resourcestatus.Machine.HALTED)
+                StatusHandler(
+                    self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK
+                ).update_status(resourcestatus.Disk.ASSIGNED)
+            StatusHandler(
+                self.models.vmachine, machineId, resourcestatus.Machine.RESTORING
+            ).update_status(resourcestatus.Machine.HALTED)
         except:
             for disk in machine["disks"]:
-                StatusHandler(self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK).rollback_status(resourcestatus.Disk.DELETED)
-            StatusHandler(self.models.vmachine, machineId, resourcestatus.Machine.RESTORING).rollback_status(resourcestatus.MAchine.DELETED)
+                StatusHandler(
+                    self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK
+                ).rollback_status(resourcestatus.Disk.DELETED)
+            StatusHandler(
+                self.models.vmachine, machineId, resourcestatus.Machine.RESTORING
+            ).rollback_status(resourcestatus.MAchine.DELETED)
             raise
 
         return True
@@ -1709,6 +1759,31 @@ class cloudapi_machines(BaseActor):
         :param name: name of the cloned machine
         :return id of the new cloned machine
         """
+
+        init_status = StatusHandler(self.models.vmachine, machineId).status
+
+        return self._schedule_task(
+            machineId=machineId,
+            method=self._clone,
+            init_status=init_status,
+            transition_status=resourcestatus.Machine.CLONING,
+            status_rollback=True,
+            name=name,
+            cloudspaceId=cloudspaceId,
+            snapshottimestamp=snapshottimestamp,
+            snapshotname=snapshotname,
+            **kwargs
+        )
+
+    def _clone(
+        self,
+        machineId,
+        name,
+        cloudspaceId=None,
+        snapshottimestamp=None,
+        snapshotname=None,
+        **kwargs
+    ):
         machine = self._getMachine(machineId)
 
         if self.models.disk.count({"id": {"$in": machine.disks}, "type": "P"}) > 0:
@@ -1739,87 +1814,88 @@ class cloudapi_machines(BaseActor):
             cloudspace.id, machine.vcpus, machine.memory / 1024.0, totaldisksize
         )
 
-        # clone vm model
-        self.cb.machine.assertName(machine.cloudspaceId, name)
-        clone = self.models.vmachine.new()
-        clone.cloudspaceId = cloudspace.id
-        clone.name = name
-        clone.descr = machine.descr
-        clone.imageId = machine.imageId
-        if machine.sizeId:
-            clone.sizeId = machine.sizeId
-        clone.memory = machine.memory
-        clone.vcpus = machine.vcpus
-        image = self.models.image.get(machine.imageId)
-        clone.cloneReference = machine.id
-        clone.acl = machine.acl
-        clone.creationTime = int(time.time())
-        clone.type = "VIRTUAL"
-        clone.status = "HALTED"
-        clone.referenceId = str(uuid.uuid4())
-        password = "Unknown"
-        for account in machine.accounts:
-            newaccount = clone.new_account()
-            newaccount.login = account.login
-            newaccount.password = account.password
-            password = account.password
-        clone.id = self.models.vmachine.set(clone)[0]
-
-        diskmapping = []
-
-        _, node, machine = self.cb.getProviderAndNode(machineId)
-        stack = self.cb.getBestStack(
-            cloudspace.gid, machine.imageId, memory=machine.memory
-        )
-        provider = self.cb.getProviderByStackId(stack["id"])
-
-        totaldisksize = 0
-        for diskId in machine.disks:
-            origdisk = self.models.disk.get(diskId)
-            if origdisk.type == "M":
-                continue
-            clonedisk = self.models.disk.new()
-            clonedisk.name = origdisk.name
-            clonedisk.gid = origdisk.gid
-            clonedisk.order = origdisk.order
-            clonedisk.accountId = origdisk.accountId
-            clonedisk.type = origdisk.type
-            clonedisk.descr = origdisk.descr
-            clonedisk.sizeMax = origdisk.sizeMax
-            clonedisk.status = resourcestatus.Disk.MODELED
-            clonediskId = self.models.disk.set(clonedisk)[0]
-            clone.disks.append(clonediskId)
-            volume = j.apps.cloudapi.disks.getStorageVolume(origdisk, provider, node)
-            if clonedisk.type == "B":
-                disk_name = "vm-{0}/bootdisk-vm-{0}".format(clone.id)
-            else:
-                disk_name = "volumes/volume_{}".format(clonediskId)
-            diskmapping.append((volume, disk_name))
-            totaldisksize += clonedisk.sizeMax
-        for nic in machine.nics:
-            if nic.type != "bridge":
-                continue
-            clonenic = clone.new_nic()
-            clonenic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
-            clonenic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(
-                cloudspace.gid
-            )
-            clonenic.deviceName = "spc-{:04x}".format(cloudspace.networkId)
-            clonenic.type = "bridge"
-
-        clone.id = self.models.vmachine.set(clone)[0]
-        if not snapshotname and not snapshottimestamp:
-            disks_snapshots = self.snapshot(machineId, name)
-        else:
-            disks_snapshots = {}
-            snapshots = self.listSnapshots(machineId)
-            for snapshot in snapshots:
-                if snapshotname and snapshot["name"] == snapshotname:
-                    disks_snapshots[snapshot["diskguid"]] = snapshot["guid"]
-                elif snapshottimestamp and snapshot["timestamp"] == snapshottimestamp:
-                    disks_snapshots[snapshot["diskguid"]] = snapshot["guid"]
-
         try:
+            # clone vm model
+            self.cb.machine.assertName(machine.cloudspaceId, name)
+            clone = self.models.vmachine.new()
+            clone.cloudspaceId = cloudspace.id
+            clone.name = name
+            clone.descr = machine.descr
+            clone.imageId = machine.imageId
+            if machine.sizeId:
+                clone.sizeId = machine.sizeId
+            clone.memory = machine.memory
+            clone.vcpus = machine.vcpus
+            image = self.models.image.get(machine.imageId)
+            clone.cloneReference = machine.id
+            clone.acl = machine.acl
+            clone.creationTime = int(time.time())
+            clone.type = "VIRTUAL"
+            clone.status = "HALTED"
+            clone.referenceId = str(uuid.uuid4())
+            password = "Unknown"
+            for account in machine.accounts:
+                newaccount = clone.new_account()
+                newaccount.login = account.login
+                newaccount.password = account.password
+                password = account.password
+            clone.id = self.models.vmachine.set(clone)[0]
+
+            diskmapping = []
+
+            _, node, machine = self.cb.getProviderAndNode(machineId)
+            stack = self.cb.getBestStack(
+                cloudspace.gid, machine.imageId, memory=machine.memory
+            )
+            provider = self.cb.getProviderByStackId(stack["id"])
+
+            totaldisksize = 0
+            for diskId in machine.disks:
+                origdisk = self.models.disk.get(diskId)
+                if origdisk.type == "M":
+                    continue
+                clonedisk = self.models.disk.new()
+                clonedisk.name = origdisk.name
+                clonedisk.gid = origdisk.gid
+                clonedisk.order = origdisk.order
+                clonedisk.accountId = origdisk.accountId
+                clonedisk.type = origdisk.type
+                clonedisk.descr = origdisk.descr
+                clonedisk.sizeMax = origdisk.sizeMax
+                clonedisk.status = resourcestatus.Disk.MODELED
+                clonediskId = self.models.disk.set(clonedisk)[0]
+                clone.disks.append(clonediskId)
+                volume = j.apps.cloudapi.disks.getStorageVolume(origdisk, provider, node)
+                if clonedisk.type == "B":
+                    disk_name = "vm-{0}/bootdisk-vm-{0}".format(clone.id)
+                else:
+                    disk_name = "volumes/volume_{}".format(clonediskId)
+                diskmapping.append((volume, disk_name))
+                totaldisksize += clonedisk.sizeMax
+            for nic in machine.nics:
+                if nic.type != "bridge":
+                    continue
+                clonenic = clone.new_nic()
+                clonenic.ipAddress = self.cb.cloudspace.network.getFreeIPAddress(cloudspace)
+                clonenic.macAddress = self.cb.cloudspace.network.getFreeMacAddress(
+                    cloudspace.gid
+                )
+                clonenic.deviceName = "spc-{:04x}".format(cloudspace.networkId)
+                clonenic.type = "bridge"
+
+            clone.id = self.models.vmachine.set(clone)[0]
+            if not snapshotname and not snapshottimestamp:
+                autocreated_snapshotname = "".join([name, str(int(time.time()))])
+                disks_snapshots = self.snapshot(machineId, autocreated_snapshotname)
+            else:
+                disks_snapshots = {}
+                snapshots = self.listSnapshots(machineId)
+                for snapshot in snapshots:
+                    if snapshotname and snapshot["name"] == snapshotname:
+                        disks_snapshots[snapshot["diskguid"]] = snapshot["guid"]
+                    elif snapshottimestamp and snapshot["timestamp"] == snapshottimestamp:
+                        disks_snapshots[snapshot["diskguid"]] = snapshot["guid"]
+
             userdata, metadata = self.cb.machine.get_user_meta_data(
                 clone.name, password, image.type
             )
@@ -1836,9 +1912,15 @@ class cloudapi_machines(BaseActor):
             volumes = provider.ex_clone_disks(diskmapping, disks_snapshots or {})
             self.cb.machine.update_volumes(clone, volumes)
             self.models.vmachine.set(clone)
+            import ipdb; ipdb.set_trace()
+            StatusHandler(self.models.vmachine, clone.id, clone.status).update_status(resourcestatus.Machine.STARTING)
             self._start(clone.id)
         except:
             self.cb.machine.cleanup(clone)
+            try:
+                self.deleteSnapshot(machine.id, name=autocreated_snapshotname)
+            except NameError:
+                pass
             raise
         self.models.disk.updateSearch(
             {"id": {"$in": clone.disks}},

@@ -8,7 +8,7 @@ from cloudbrokerlib import authenticator, network, netmgr, resourcestatus
 from cloudbrokerlib.baseactor import BaseActor
 from cloudbrokerlib.objectqueue import ObjectQueue
 from cloudbrokerlib.statushandler import StatusHandler
-
+from cloudbrokerlib.scheduler import Scheduler
 
 
 def getIP(network):
@@ -23,10 +23,17 @@ class cloudapi_cloudspaces(BaseActor):
 
     """
 
+    _RETRY_COUNT = 1
+
     def __init__(self):
         super(cloudapi_cloudspaces, self).__init__()
         self.libvirt_actor = j.apps.libcloud.libvirt
         self.netmgr = self.cb.netmgr
+        self._minimum_days_of_credit_required = float(
+            self.hrd.get(
+                "instance.openvcloud.cloudbroker.creditcheck.daysofcreditrequired"
+            )
+        )
 
     @authenticator.auth(acl={"cloudspace": set("U")})
     def addUser(self, cloudspaceId, userId, accesstype, explicit=True, **kwargs):
@@ -53,10 +60,7 @@ class cloudapi_cloudspaces(BaseActor):
         accountacl = authenticator.auth().getAccountAcl(accountId)
         if userId not in accountacl:
             j.apps.cloudapi.accounts.addUser(
-                accountId=accountId,
-                userId=userId,
-                accesstype="R",
-                explicit=False,
+                accountId=accountId, userId=userId, accesstype="R", explicit=False
             )
         if explicit:
             try:
@@ -184,6 +188,41 @@ class cloudapi_cloudspaces(BaseActor):
         results = self.models.cloudspace.search(query)[1:]
         return results
 
+    # def _schedule_task(
+    #     self, spaceId, method, init_status, transition_status, status_rollback=False, **kwargs
+    # ):
+    #     """ Schedule task on machine
+
+    #         :param spaceId: cloudspace id
+    #         :param init_state: expected state of cloudspace
+    #         :param transition_status: transition state of cloudspace that should be set during the action
+    #         :param status_rollback: if set to True rollback status to the initial status after the action is succeeded.
+    #                 used for actions that return machine to the same state, for example attaching/detaching disks.
+    #     """
+    #     StatusHandler(self.models.cloudspace, spaceId, init_status).update_status(
+    #         transition_status
+    #     )
+    #     action = ObjectQueue.get_instance().queue(
+    #         self.models.cloudspace.cat,
+    #         spaceId,
+    #         self._RETRY_COUNT,
+    #         method,
+    #         spaceId,
+    #         **kwargs
+    #     )
+    #     try:
+    #         result = action.get_result()
+    #     except:
+    #         StatusHandler(
+    #             self.models.vmachine, spaceId, transition_status
+    #         ).rollback_status(init_status)
+
+    #         self.get(spaceId)
+    #         raise
+    #     if status_rollback:
+    #         StatusHandler(self.models.cloudspace, spaceId, transition_status).rollback_status(init_status)
+    #     return result
+
     @authenticator.auth(acl={"account": set("C")})
     def create(
         self,
@@ -220,8 +259,6 @@ class cloudapi_cloudspaces(BaseActor):
         :return: True if update was successful
         :return int with id of created cloudspace
         """
-        import ipdb; ipdb.set_trace()
-
         account = self.models.account.get(accountId)
         if account.status in resourcestatus.Account.INVALID_STATES:
             raise exceptions.NotFound("Account does not exist")
@@ -318,6 +355,25 @@ class cloudapi_cloudspaces(BaseActor):
             maxNumPublicIP,
         )
         cs.id = self.models.cloudspace.set(cs)[0]
+        Scheduler.get_instance().schedule_task(
+            object_id=cs.id,
+            model=self.models.cloudspace,
+            method=self._create,
+            init_status=resourcestatus.Cloudspace.VIRTUAL,
+            transition_status=resourcestatus.Cloudspace.DEPLOYING,
+            **kwargs
+        )
+
+        return cs.id
+
+    @authenticator.auth(acl={"account": set("C")})
+    def _create(self, spaceId, **kwargs):
+        cs = self.models.cloudspace.get(spaceId)
+        if not cs:
+            raise exceptions.BadRequest(
+                "Model for cloudspace {} was not found in database".format(spaceId)
+            )
+
         try:
             self._checkAvailableAccountIPs(cs.id)
         except exceptions.BadRequest:
@@ -341,10 +397,11 @@ class cloudapi_cloudspaces(BaseActor):
         self.models.cloudspace.set(cs)
 
         # deploy async.
-        gevent.spawn(self.deploy, cloudspaceId=cs.id, **kwargs)
+        gevent.spawn(self._deploy, cloudspaceId=cs.id, **kwargs)
 
-        return cs.id
+        return True
 
+    @authenticator.auth(acl={"cloudspace": set("C")})
     def deploy(self, cloudspaceId, **kwargs):
         """
         Create VFW for cloudspace
@@ -352,17 +409,30 @@ class cloudapi_cloudspaces(BaseActor):
         :param cloudspaceId: id of the cloudspace
         :return: status of deployment
         """
-        StatusHandler(self.models.cloudspace, cloudspaceId).update_status(resourcestatus.Cloudspace.DEPLOYING)
-        deployment = ObjectQueue.get_instance().queue(
-            self.models.cloudspace.cat,
-            cloudspaceId, 3, self._deploy, cloudspaceId)
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._deploy,
+            init_status=resourcestatus.Cloudspace.VIRTUAL,
+            transition_status=resourcestatus.Cloudspace.DEPLOYING,
+            **kwargs
+        )
 
-        success, result = deployment.get_result_tuple()
-        if not success:
-            StatusHandler(self.models.cloudspace, cloudspaceId).rollback_status(resourcestatus.Cloudspace.VIRTUAL)
-            raise result
+    # def _deploy(self, cloudspaceId, **kwargs):
+    #     StatusHandler(self.models.cloudspace, cloudspaceId).update_status(
+    #         resourcestatus.Cloudspace.DEPLOYING
+    #     )
+    #     deployment = ObjectQueue.get_instance().queue(
+    #         self.models.cloudspace.cat, cloudspaceId, 3, self._deploy, cloudspaceId
+    #     )
 
-    @authenticator.auth(acl={"cloudspace": set("C")})
+    #     success, result = deployment.get_result_tuple()
+    #     if not success:
+    #         StatusHandler(self.models.cloudspace, cloudspaceId).rollback_status(
+    #             resourcestatus.Cloudspace.VIRTUAL
+    #         )
+    #         raise result
+
     def _deploy(self, cloudspaceId, **kwargs):
         try:
             cs = self.models.cloudspace.get(cloudspaceId)
@@ -406,9 +476,10 @@ class cloudapi_cloudspaces(BaseActor):
                 )
                 raise
 
-            self.network.releaseExternalIpAddress(pool.id, str(externalipaddress))
+            self.cb.network.cloudspace.releaseExternalIpAddress(pool.id, str(externalipaddress))
             StatusHandler(self.models.cloudspace, cs.id).update_status(
-                                resourcestatus.Cloudspace.DEPLOYED)        
+                resourcestatus.Cloudspace.DEPLOYED
+            )
 
             return resourcestatus.Cloudspace.DEPLOYED
         except Exception as e:
@@ -425,6 +496,24 @@ class cloudapi_cloudspaces(BaseActor):
         :param cloudspaceId: id of the cloudspace
         :return True if deletion was successful
         """
+        init_state = StatusHandler(self.models.cloudspace, cloudspaceId).status
+        transition_status = (
+            resourcestatus.Cloudspace.DESTROYING
+            if permanently
+            else resourcestatus.Cloudspace.DELETING
+        )
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._delete,
+            init_status=init_state,
+            transition_status=transition_status,
+            permanently=permanently,
+            **kwargs
+        )
+
+
+    def _delete(self, cloudspaceId, permanently=False, **kwargs):
         cloudspaceId = int(cloudspaceId)
         # A cloudspace may not contain any resources any more
         query = {
@@ -436,6 +525,7 @@ class cloudapi_cloudspaces(BaseActor):
                 ]
             },
         }
+
         results = self.models.vmachine.search(query)[1:]
         if len(results) > 0:
             raise exceptions.Conflict(
@@ -451,39 +541,35 @@ class cloudapi_cloudspaces(BaseActor):
                     "Can not delete a CloudSpace that is being deployed."
                 )
 
-        status = cloudspace.status
-        try:
-            provider = self.cb.getProviderByGID(cloudspace.gid)
-            cloudspace.status = resourcestatus.Cloudspace.DESTROYING
-            self.models.cloudspace.set(cloudspace)
-            if permanently:
-                machines = self.models.vmachine.search(
-                    {
-                        "cloudspaceId": cloudspaceId,
-                        "status": resourcestatus.Machine.DELETED,
-                    }
-                )[1:]
-                for machine in sorted(
-                    machines, key=lambda m: m["cloneReference"], reverse=True
-                ):
-                    self.cb.machine.destroy_machine(machine["id"], provider)
-                cloudspace = self.cb.cloudspace.release_resources(cloudspace)
-                cloudspace.status = resourcestatus.Cloudspace.DESTROYED
-                current_time = int(time.time())
-            else:
-                fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
+        provider = self.cb.getProviderByGID(cloudspace.gid)
+        cloudspace.status = (
+            resourcestatus.Cloudspace.DESTROYING
+            if permanently
+            else resourcestatus.Cloudspace.DELETING
+        )
+        self.models.cloudspace.set(cloudspace)
+        if permanently:
+            machines = self.models.vmachine.search(
+                {"cloudspaceId": cloudspaceId, "status": resourcestatus.Machine.DELETED}
+            )[1:]
+            for machine in sorted(
+                machines, key=lambda m: m["cloneReference"], reverse=True
+            ):
+                self.cb.machine.destroy_machine(machine["id"], provider)
+            cloudspace = self.cb.cloudspace.release_resources(cloudspace)
+            StatusHandler(
+                self.models.cloudspace,
+                cloudspaceId,
+                resourcestatus.Cloudspace.DESTROYING,
+            ).update_status(resourcestatus.Cloudspace.DESTROYED)
+        else:
+            fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
+            if self.cb.netmgr.fw_list(gid=cloudspace.gid, domain=fwid):
                 self.cb.netmgr.fw_stop(fwid)
-                cloudspace.status = resourcestatus.Cloudspace.DELETED
-                current_time = int(time.time())
-                cloudspace.deletionTime = current_time
-            cloudspace.updateTime = current_time
-        except:
-            cloudspace = self.models.cloudspace.get(cloudspace.id).dump()
-            cloudspace["status"] = status
-            self.models.cloudspace.set(cloudspace)
-            raise
-        finally:
-            self.models.cloudspace.set(cloudspace)
+            StatusHandler(
+                self.models.cloudspace, cloudspaceId, resourcestatus.Cloudspace.DELETING
+            ).update_status(resourcestatus.Cloudspace.DELETED)
+
         return True
 
     @authenticator.auth(acl={"account": set("A")})

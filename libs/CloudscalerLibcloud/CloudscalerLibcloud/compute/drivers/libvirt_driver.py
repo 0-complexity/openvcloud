@@ -660,7 +660,7 @@ class CSLibvirtNodeDriver(object):
         domain = xml.findall("domain")[0]
         return self._get_domain_disk_file_names(domain)
 
-    def destroy_node(self, node):
+    def destroy_node(self, node, **kwargs):
         xml = self.get_xml(node)
         self._execute_agent_job(
             "deletemachine", queue="hypervisor", machineid=node.id, machinexml=xml
@@ -708,37 +708,37 @@ class CSLibvirtNodeDriver(object):
             noderesult.append(self._from_agent_to_node(x, ipaddress))
         return noderesult
 
-    def ex_stop_node(self, node, force=False):
+    def ex_stop_node(self, node, force=False, **kwargs):
         machineid = node.id
         return self._execute_agent_job(
             "stopmachine", queue="hypervisor", machineid=machineid, force=force
         )
 
-    def ex_suspend_node(self, node):
+    def ex_suspend_node(self, node, **kwargs):
         machineid = node.id
         return self._execute_agent_job(
             "suspendmachine", queue="hypervisor", machineid=machineid
         )
 
-    def ex_resume_node(self, node):
+    def ex_resume_node(self, node, **kwargs):
         machineid = node.id
         return self._execute_agent_job(
             "resumemachine", queue="hypervisor", machineid=machineid
         )
 
-    def ex_pause_node(self, node):
+    def ex_pause_node(self, node, **kwargs):
         machineid = node.id
         return self._execute_agent_job(
             "pausemachine", queue="hypervisor", machineid=machineid
         )
 
-    def ex_unpause_node(self, node):
+    def ex_unpause_node(self, node, **kwargs):
         machineid = node.id
         return self._execute_agent_job(
             "unpausemachine", queue="hypervisor", machineid=machineid
         )
 
-    def ex_soft_reboot_node(self, node):
+    def ex_soft_reboot_node(self, node, **kwargs):
         xml = self.get_xml(node)
         netinfo = self.get_net_info(node)
         return self._execute_agent_job(
@@ -749,7 +749,7 @@ class CSLibvirtNodeDriver(object):
             netinfo=netinfo,
         )
 
-    def ex_hard_reboot_node(self, node):
+    def ex_hard_reboot_node(self, node, **kwargs):
         xml = self.get_xml(node)
         netinfo = self.get_net_info(node)
         return self._execute_agent_job(
