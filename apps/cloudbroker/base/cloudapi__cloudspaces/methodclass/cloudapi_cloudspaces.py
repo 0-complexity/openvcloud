@@ -24,7 +24,6 @@ class cloudapi_cloudspaces(BaseActor):
         super(cloudapi_cloudspaces, self).__init__()
         self.libvirt_actor = j.apps.libcloud.libvirt
         self.netmgr = self.cb.netmgr
-        self.network = network.Network(self.models)
 
     @authenticator.auth(acl={"cloudspace": set("U")})
     def addUser(self, cloudspaceId, userId, accesstype, explicit=True, **kwargs):
@@ -323,7 +322,7 @@ class cloudapi_cloudspaces(BaseActor):
 
         kwargs["ctx"].env["tags"] += " cloudspaceId:{}".format(cs.id)
         networkid = cs.networkId
-        netinfo = self.network.getExternalIpAddress(
+        netinfo = self.cb.cloudspace.network.getExternalIpAddress(
             cs.gid, cs.accountId, cs.externalnetworkId
         )
         if netinfo is None:
@@ -360,7 +359,7 @@ class cloudapi_cloudspaces(BaseActor):
             pool = self.models.externalnetwork.get(cs.externalnetworkId)
 
             if not cs.externalnetworkip:
-                pool, externalipaddress = self.network.getExternalIpAddress(
+                pool, externalipaddress = self.cb.cloudspace.network.getExternalIpAddress(
                     cs.gid, cs.accountId, cs.externalnetworkId
                 )
                 cs.externalnetworkip = str(externalipaddress)
@@ -385,7 +384,7 @@ class cloudapi_cloudspaces(BaseActor):
                     privatenetwork=cs.privatenetwork,
                 )
             except:
-                self.network.releaseExternalIpAddress(pool.id, str(externalipaddress))
+                self.cb.cloudspace.network.releaseExternalIpAddress(pool.id, str(externalipaddress))
                 self.models.cloudspace.updateSearch(
                     {"id": cs.id},
                     {
