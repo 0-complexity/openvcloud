@@ -96,6 +96,7 @@ This will create a Kubernetes cluster, and deploy all OpenvCloud system containe
 
 One of these containers is the management container, through which you will be able to check the status of all other containers;discussed next.
 
+To connect to the controller use [teleport](Systemadmin/Connect/teleport/md)
 First you need to install docker on the node on which you are beginnning the installation process:
 
 ```bash
@@ -224,12 +225,4 @@ When done, the environment should be ready to use.
 <a id="deploy-images"></a>
 ## Deploy virtual machine images
 
-Login to management node via 0-access.  
-On the management pod install the image by starting a tmux session and running following command:
-```
-installer image deploy --name image_ubuntu-1604
-```
-
-To find out which images exists please check the [templates](https://github.com/0-complexity/openvcloud_ays/tree/master/_images)
-
-To add custom images [see](https://github.com/0-complexity/openvcloud/blob/master/docs/CloudBrokerPortal/Images/Images.md)
+To add images [see](https://github.com/0-complexity/openvcloud/blob/master/docs/CloudBrokerPortal/Images/Images.md)
