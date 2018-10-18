@@ -187,6 +187,7 @@ class Gateway(object):
             "publicnetwork": publicnetwork,
             "privatenetworks": [privatenetwork],
             "portforwards": self.portforwards,
+            "enableproxy": bool(self.proxies)
         }
         config = render("nftables.conf", **tempargs)
 
