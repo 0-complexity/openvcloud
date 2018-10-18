@@ -120,9 +120,12 @@ class Gateway(object):
         service = "cloud-init"
         servicepath = self._prepare_bundle(service)
         allcloudinits = copy.deepcopy(self.cloudinit)
+        cloudinitpath = os.path.join(servicepath, "rootfs/etc/cloud-init")
+        if allcloudinits:
+            j.system.fs.createDir(cloudinitpath)
         for cloudinit in allcloudinits:
             mac = cloudinit.pop("mac")
-            path = os.path.join(servicepath, "rootfs/etc/cloud-init", mac)
+            path = os.path.join(cloudinitpath, mac)
             with open(path, "w+") as fd:
                 json.dump(cloudinit, fd)
         self.install_service(service)

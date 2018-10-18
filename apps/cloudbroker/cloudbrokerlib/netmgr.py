@@ -132,7 +132,11 @@ class NetManager(object):
             self.fw_reapply(vfw.guid)
             return result
         else:
-            args = {"vfw": vfw.dump()}
+            fwobj = vfw.dump()
+            fwobj["leases"], fwobj["cloud-init"] = self.cb.cloudspace.get_leases_cloudinit(
+                int(fwobj["domain"])
+            )
+            args = {"vfw": fwobj}
             job = self.cb.scheduleCmd(
                 nid=nid,
                 cmdcategory="jumpscale",
