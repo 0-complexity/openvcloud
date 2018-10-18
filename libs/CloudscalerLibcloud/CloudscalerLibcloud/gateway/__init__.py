@@ -5,6 +5,7 @@ from CloudscalerLibcloud.utils.network import Network, NetworkTool
 import os
 import subprocess
 import json
+import shutil
 import jinja2
 import netaddr
 import copy
@@ -103,8 +104,8 @@ class Gateway(object):
         servicepath = self.get_service_path(service)
         if not os.path.exists(servicepath):
             templatepath = "/var/lib/runc/templates/{}".format(service)
-            j.system.fs.createDir(servicepath)
-            j.system.fs.copyDirTree(templatepath, servicepath)
+            j.system.fs.createDir(os.path.dirname(servicepath))
+            shutil.copytree(templatepath, servicepath, True)
             contconfigpath = os.path.join(servicepath, "config.json")
             with open(contconfigpath) as fd:
                 config = json.load(fd)
