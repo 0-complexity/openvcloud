@@ -4,7 +4,7 @@ import sys
 from pkg_resources import parse_version
 
 UPGRADEFOLDER = (
-    "/opt/code/github/0-complexity/openvcloud/libs/agent-scripts/cloudbroker/upgrades/"
+    "/opt/jumpscale7/apps/agentcontroller/jumpscripts/cloudbroker/upgrades/"
 )
 
 descr = """
