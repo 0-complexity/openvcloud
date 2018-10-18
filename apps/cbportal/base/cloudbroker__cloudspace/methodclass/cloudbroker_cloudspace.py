@@ -294,14 +294,14 @@ class cloudbroker_cloudspace(BaseActor):
         "Finished deploying Cloud Space",
         "Failed to deploy Cloud Space",
     )
-    def deployVFW(self, cloudspaceId, type, **kwargs):
+    def deployVFW(self, cloudspaceId, **kwargs):
         """
         Deploy VFW
         param:cloudspaceId id of the cloudspace
         """
         self._getCloudSpace(cloudspaceId)
 
-        return j.apps.cloudapi.cloudspaces.deploy(cloudspaceId=cloudspaceId, type=type)
+        return j.apps.cloudapi.cloudspaces.deploy(cloudspaceId=cloudspaceId)
 
     @auth(groups=["level1", "level2", "level3"])
     @async(

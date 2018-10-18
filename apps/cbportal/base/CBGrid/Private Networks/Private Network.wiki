@@ -58,8 +58,11 @@ h2. Private Network: ${id} (${'%04x' % id})
   input:
   - type: message
     messagetype: warning
-    message: You are about to change VFW router type:</br>
-             This will cause some small downtime of the router
+    message: |
+      WARNING!</br>
+      You are about to change your router type to a Virtual Gateway.</br>
+      This is a beta feature. A rollback to RouterOS is not possible. Please make sure you know what your are doing.</br></br>
+      This will cause some small downtime of the router
 {% endif %}
 - display: Reapply Config
   action: /restmachine/cloudbroker/cloudspace/applyConfig

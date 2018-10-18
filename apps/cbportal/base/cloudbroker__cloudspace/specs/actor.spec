@@ -62,7 +62,6 @@
         Deploy VFW
         """
         var:cloudspaceId int,, id of the cloudspace
-        var:type str,routeros,Type of router for cloudspace
 
     method:startVFW
         """

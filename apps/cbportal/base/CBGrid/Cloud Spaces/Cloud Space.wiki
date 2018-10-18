@@ -68,14 +68,6 @@ h2. Cloud Space: ${name}
   reload: false
   input:
   - reason
-  - name: type
-    label: Choose Router Type
-    type: dropdown
-    values:
-      - label: "Router OS"
-        value: "routeros"
-      - label: "Virtaul Gateway"
-        value: "vgw"
   data:
    async: True
    cloudspaceId: $$id
