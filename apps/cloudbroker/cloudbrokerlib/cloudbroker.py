@@ -1,3 +1,12 @@
+from .netmgr import NetManager
+from .utils import getJobTags, Dummy, removeConfusingChars
+import random
+import time
+import string
+import yaml
+import re
+import netaddr
+import uuid
 from JumpScale import j
 from libcloud.compute.base import NodeAuthPassword
 from JumpScale.portal.portal import exceptions
@@ -12,16 +21,8 @@ from CloudscalerLibcloud.compute.drivers.libvirt_driver import (
 from cloudbrokerlib import enums, network, resourcestatus
 from cloudbrokerlib.statushandler import StatusHandler
 from CloudscalerLibcloud.utils.connection import CloudBrokerConnection
+from cloudbrokerlib.statushandler import StatusHandler
 from CloudscalerLibcloud.utils.gridconfig import GridConfig
-from .netmgr import NetManager
-from .utils import getJobTags, Dummy, removeConfusingChars
-import random
-import time
-import string
-import yaml
-import re
-import netaddr
-import uuid
 
 DEFAULTIOPS = 2000
 
@@ -479,6 +480,93 @@ class CloudSpace(object):
     def __init__(self, cb):
         self.cb = cb
         self.network = network.Network(db)
+
+    class RequireState(object):
+        def __init__(self, states, msg, refresh=True):
+            self.states = states if isinstance(states, list) else [states]
+            self.msg = msg
+            self.refresh = refresh
+
+        def __call__(self, func):
+            def wrapper(s, **kwargs):
+                spaceId = int(kwargs["cloudspaceId"])
+                space = s.models.cloudspace.searchOne({"id": spaceId})
+                if not space:
+                    raise exceptions.NotFound(
+                        "Machine with id %s was not found" % spaceId
+                    )
+                # if self.refresh:
+                #     space = s.get(spaceId)
+
+                if not space["status"] in self.states:
+                    raise exceptions.Conflict(self.msg)
+                return func(s, **kwargs)
+
+            return wrapper
+
+    def delete(self, cloudspaceId, permanently=False, **kwargs):
+        cloudspaceId = int(cloudspaceId)
+        # A cloudspace may not contain any resources any more
+        query = {
+            "cloudspaceId": cloudspaceId,
+            "status": {
+                "$nin": [
+                    resourcestatus.Machine.DESTROYED,
+                    resourcestatus.Machine.DELETED,
+                ]
+            },
+        }
+
+        results = models.vmachine.search(query)[1:]
+        if len(results) > 0:
+            raise exceptions.Conflict(
+                "In order to delete a CloudSpace it can not contain Machines."
+            )
+        # The last cloudspace in a space may not be deleted
+        with models.cloudspace.lock(cloudspaceId):
+            cloudspace = models.cloudspace.get(cloudspaceId)
+            if cloudspace.status == resourcestatus.Cloudspace.DESTROYED:
+                return True
+            if cloudspace.status == resourcestatus.Cloudspace.DEPLOYING:
+                raise exceptions.BadRequest(
+                    "Can not delete a CloudSpace that is being deployed."
+                )
+        
+        if permanently:
+            target_status = resourcestatus.Cloudspace.DESTROYED
+            transition_status = resourcestatus.Cloudspace.DESTROYING
+        else:
+            target_status = resourcestatus.Cloudspace.DELETED
+            transition_status = resourcestatus.Cloudspace.DELETING
+
+        provider = self.cb.getProviderByGID(cloudspace.gid)
+        cloudspace.status = (
+            resourcestatus.Cloudspace.DESTROYING
+            if permanently
+            else resourcestatus.Cloudspace.DELETING
+        )
+        models.cloudspace.set(cloudspace)
+
+        fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
+        if permanently:
+            machines = models.vmachine.search(
+                {"cloudspaceId": cloudspaceId, "status": resourcestatus.Machine.DELETED}
+            )[1:]
+            for machine in sorted(
+                machines, key=lambda m: m["cloneReference"], reverse=True
+            ):
+                self.cb.machine.destroy_machine(machine["id"], provider)
+              
+            cloudspace = self.cb.cloudspace.release_resources(cloudspace)
+        else:
+            self.cb.netmgr.fw_stop(fwid)
+        
+        StatusHandler(
+            models.cloudspace, cloudspaceId, transition_status
+        ).update_status(target_status)
+
+        return True
+
 
     def release_resources(self, cloudspace, releasenetwork=True):
         #  delete routeros

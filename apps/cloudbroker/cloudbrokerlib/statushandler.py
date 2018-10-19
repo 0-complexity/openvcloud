@@ -61,8 +61,8 @@ class StatusHandler(object):
 
         if not result["nModified"]:
             raise exceptions.BadRequest(
-                "Failed to update status of item ID {} in collection {}, status was modified by another process".format(
-                    self.id, self.category
+                "Failed to update status of item ID {} in collection {} from {} to {}, status was set incorrectly or modified by another process".format(
+                    self.id, self.category, self.status, target_status,
                 )
             )
         if result["nModified"] > 1:

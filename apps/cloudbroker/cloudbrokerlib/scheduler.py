@@ -3,12 +3,6 @@ from statushandler import StatusHandler
 
 
 class Scheduler(ObjectQueue):
-    # def __init__(self, model, objectId, status=None, retry_count=1):
-    #     self.id = objectId
-    #     self.model = model
-    #     self.status = status if status else StatusHandler(model, objectId).status
-    #     self.retry_count = retry_count
-
     def schedule_task(
         self,
         object_id,

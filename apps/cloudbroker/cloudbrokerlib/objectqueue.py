@@ -3,6 +3,8 @@ from collections import namedtuple
 
 from gevent import spawn, spawn_later
 from gevent.queue import Queue
+from JumpScale import j
+
 
 
 class ObjectQueue(object):
@@ -88,8 +90,10 @@ class ObjectQueue(object):
                             self._result = ObjectQueue._Future._Result(True, method(*args, **kwargs))
                             break
                         except BaseException as e:
-                            # Need to file ECO here
-                            pass
+                            j.errorconditionhandler.processPythonExceptionObject(
+                                e, message="Queued action failed."
+                            )
+
                     else:
                         self._result = ObjectQueue._Future._Result(False, e)
                     notify()

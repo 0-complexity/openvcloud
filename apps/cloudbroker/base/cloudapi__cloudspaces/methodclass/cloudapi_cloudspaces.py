@@ -355,24 +355,6 @@ class cloudapi_cloudspaces(BaseActor):
             maxNumPublicIP,
         )
         cs.id = self.models.cloudspace.set(cs)[0]
-        Scheduler.get_instance().schedule_task(
-            object_id=cs.id,
-            model=self.models.cloudspace,
-            method=self._create,
-            init_status=resourcestatus.Cloudspace.VIRTUAL,
-            transition_status=resourcestatus.Cloudspace.DEPLOYING,
-            **kwargs
-        )
-
-        return cs.id
-
-    @authenticator.auth(acl={"account": set("C")})
-    def _create(self, spaceId, **kwargs):
-        cs = self.models.cloudspace.get(spaceId)
-        if not cs:
-            raise exceptions.BadRequest(
-                "Model for cloudspace {} was not found in database".format(spaceId)
-            )
 
         try:
             self._checkAvailableAccountIPs(cs.id)
@@ -391,15 +373,19 @@ class cloudapi_cloudspaces(BaseActor):
 
         pool, externalipaddress = netinfo
 
-        cs.externalnetworkId = pool.id
-
-        cs.externalnetworkip = str(externalipaddress)
-        self.models.cloudspace.set(cs)
-
+        self.models.cloudspace.updateSearch(
+            {"id": cs.id},
+            {
+                "$set": {
+                    "externalnetworkId": pool.id,
+                    "externalnetworkip": str(externalipaddress),
+                }
+            },
+        )
         # deploy async.
-        gevent.spawn(self._deploy, cloudspaceId=cs.id, **kwargs)
+        gevent.spawn(self.deploy, cloudspaceId=cs.id, **kwargs)
 
-        return True
+        return cs.id
 
     @authenticator.auth(acl={"cloudspace": set("C")})
     def deploy(self, cloudspaceId, **kwargs):
@@ -418,21 +404,6 @@ class cloudapi_cloudspaces(BaseActor):
             **kwargs
         )
 
-    # def _deploy(self, cloudspaceId, **kwargs):
-    #     StatusHandler(self.models.cloudspace, cloudspaceId).update_status(
-    #         resourcestatus.Cloudspace.DEPLOYING
-    #     )
-    #     deployment = ObjectQueue.get_instance().queue(
-    #         self.models.cloudspace.cat, cloudspaceId, 3, self._deploy, cloudspaceId
-    #     )
-
-    #     success, result = deployment.get_result_tuple()
-    #     if not success:
-    #         StatusHandler(self.models.cloudspace, cloudspaceId).rollback_status(
-    #             resourcestatus.Cloudspace.VIRTUAL
-    #         )
-    #         raise result
-
     def _deploy(self, cloudspaceId, **kwargs):
         try:
             cs = self.models.cloudspace.get(cloudspaceId)
@@ -445,18 +416,17 @@ class cloudapi_cloudspaces(BaseActor):
                 cs.externalnetworkip = str(externalipaddress)
                 self.models.cloudspace.updateSearch(
                     {"id": cs.id},
-                    {"$set": {"externalnetworkip": str(externalipaddress)}},
+                    {"$set": {"externalnetworkip": cs.externalnetworkip}},
                 )
 
             externalipaddress = netaddr.IPNetwork(cs.externalnetworkip)
             networkid = cs.networkId
             publicgw = pool.gateway
-
             try:
                 self.netmgr.fw_create(
                     cs.gid,
                     str(cloudspaceId),
-                    str(externalipaddress),
+                    cs.externalnetworkip,
                     cs.type,
                     networkid,
                     publicgwip=publicgw,
@@ -476,12 +446,12 @@ class cloudapi_cloudspaces(BaseActor):
                 )
                 raise
 
-            self.cb.network.cloudspace.releaseExternalIpAddress(pool.id, str(externalipaddress))
-            StatusHandler(self.models.cloudspace, cs.id).update_status(
+            StatusHandler(self.models.cloudspace, cs.id, cs.status).update_status(
                 resourcestatus.Cloudspace.DEPLOYED
             )
 
             return resourcestatus.Cloudspace.DEPLOYED
+
         except Exception as e:
             j.errorconditionhandler.processPythonExceptionObject(
                 e, message="Cloudspace deploy aysnc call exception."
@@ -505,72 +475,13 @@ class cloudapi_cloudspaces(BaseActor):
         return Scheduler.get_instance().schedule_task(
             object_id=cloudspaceId,
             model=self.models.cloudspace,
-            method=self._delete,
+            method=self.cb.cloudspace.delete,
             init_status=init_state,
             transition_status=transition_status,
             permanently=permanently,
             **kwargs
         )
 
-
-    def _delete(self, cloudspaceId, permanently=False, **kwargs):
-        cloudspaceId = int(cloudspaceId)
-        # A cloudspace may not contain any resources any more
-        query = {
-            "cloudspaceId": cloudspaceId,
-            "status": {
-                "$nin": [
-                    resourcestatus.Machine.DESTROYED,
-                    resourcestatus.Machine.DELETED,
-                ]
-            },
-        }
-
-        results = self.models.vmachine.search(query)[1:]
-        if len(results) > 0:
-            raise exceptions.Conflict(
-                "In order to delete a CloudSpace it can not contain Machines."
-            )
-        # The last cloudspace in a space may not be deleted
-        with self.models.cloudspace.lock(cloudspaceId):
-            cloudspace = self.models.cloudspace.get(cloudspaceId)
-            if cloudspace.status == resourcestatus.Cloudspace.DESTROYED:
-                return True
-            if cloudspace.status == resourcestatus.Cloudspace.DEPLOYING:
-                raise exceptions.BadRequest(
-                    "Can not delete a CloudSpace that is being deployed."
-                )
-
-        provider = self.cb.getProviderByGID(cloudspace.gid)
-        cloudspace.status = (
-            resourcestatus.Cloudspace.DESTROYING
-            if permanently
-            else resourcestatus.Cloudspace.DELETING
-        )
-        self.models.cloudspace.set(cloudspace)
-        if permanently:
-            machines = self.models.vmachine.search(
-                {"cloudspaceId": cloudspaceId, "status": resourcestatus.Machine.DELETED}
-            )[1:]
-            for machine in sorted(
-                machines, key=lambda m: m["cloneReference"], reverse=True
-            ):
-                self.cb.machine.destroy_machine(machine["id"], provider)
-            cloudspace = self.cb.cloudspace.release_resources(cloudspace)
-            StatusHandler(
-                self.models.cloudspace,
-                cloudspaceId,
-                resourcestatus.Cloudspace.DESTROYING,
-            ).update_status(resourcestatus.Cloudspace.DESTROYED)
-        else:
-            fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
-            if self.cb.netmgr.fw_list(gid=cloudspace.gid, domain=fwid):
-                self.cb.netmgr.fw_stop(fwid)
-            StatusHandler(
-                self.models.cloudspace, cloudspaceId, resourcestatus.Cloudspace.DELETING
-            ).update_status(resourcestatus.Cloudspace.DELETED)
-
-        return True
 
     @authenticator.auth(acl={"account": set("A")})
     def disable(self, cloudspaceId, reason, **kwargs):
@@ -580,6 +491,18 @@ class cloudapi_cloudspaces(BaseActor):
         :param reason reason of disabling
         :return True if cloudspace is disabled
         """
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._disable,
+            init_status=resourcestatus.Cloudspace.DEPLOYED,
+            transition_status=resourcestatus.Cloudspace.DISABLING,
+            reason=reason,
+            **kwargs
+        )
+    
+    def _disable(self, cloudspaceId, reason, **kwargs):
+
         cloudspaceId = int(cloudspaceId)
         cloudspace = self.models.cloudspace.get(cloudspaceId)
         vmachines = self.models.vmachine.search(
@@ -592,11 +515,15 @@ class cloudapi_cloudspaces(BaseActor):
             j.apps.cloudapi.machines.stop(machineId=vmachine["id"])
         fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
         self.netmgr.fw_stop(fwid)
-        self.models.cloudspace.updateSearch(
-            {"id": cloudspaceId},
-            {"$set": {"status": resourcestatus.Cloudspace.DISABLED}},
+        StatusHandler(self.models.cloudspace, cloudspaceId, resourcestatus.Cloudspace.DISABLING).update_status(
+            resourcestatus.Cloudspace.DISABLED
         )
+        # self.models.cloudspace.updateSearch(
+        #     {"id": cloudspaceId},
+        #     {"$set": {"status": resourcestatus.Cloudspace.DISABLED}},
+        # )
         return True
+
 
     @authenticator.auth(acl={"account": set("A")})
     def enable(self, cloudspaceId, reason, **kwargs):
@@ -606,13 +533,27 @@ class cloudapi_cloudspaces(BaseActor):
         :param reason reason of enabling
         :return True if cloudspace is enabled
         """
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._enable,
+            init_status=resourcestatus.Cloudspace.DISABLED,
+            transition_status=resourcestatus.Cloudspace.ENABLING,
+            reason=reason,
+            **kwargs
+        )
+
+    def _enable(self, cloudspaceId, reason, **kwargs):
         cloudspaceId = int(cloudspaceId)
         cloudspace = self.models.cloudspace.get(cloudspaceId)
         self.netmgr.fw_start(cloudspace.networkId)
-        self.models.cloudspace.updateSearch(
-            {"id": cloudspaceId},
-            {"$set": {"status": resourcestatus.Cloudspace.DEPLOYED}},
+        StatusHandler(self.models.cloudspace, cloudspaceId, resourcestatus.Cloudspace.ENABLING).update_status(
+            resourcestatus.Cloudspace.DEPLOYED
         )
+        # self.models.cloudspace.updateSearch(
+        #     {"id": cloudspaceId},
+        #     {"$set": {"status": resourcestatus.Cloudspace.DEPLOYED}},
+        # )
         return True
 
     @authenticator.auth(acl={"cloudspace": set("R")})
@@ -661,6 +602,25 @@ class cloudapi_cloudspaces(BaseActor):
 
     @authenticator.auth(acl={"cloudspace": set("U")})
     def restore(self, cloudspaceId, reason, **kwargs):
+        """
+        Restore cloudspace from Recycle Bin
+
+        :param cloudspaceId: id of the cloudspaceId
+        :param reason: reason of enabling
+        return True if cloudspace is restored
+        """
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._restore,
+            init_status=resourcestatus.Cloudspace.DELETED,
+            transition_status=resourcestatus.Cloudspace.DEPLOYED,
+            reason=reason,
+            **kwargs
+        )        
+
+    def _restore(self, cloudspaceId, reason, **kwargs):
+        
         cloudspaceId = int(cloudspaceId)
         cloudspace = self.models.cloudspace.searchOne({"id": cloudspaceId})
         account = self.models.account.get(cloudspace["accountId"])
@@ -694,8 +654,11 @@ class cloudapi_cloudspaces(BaseActor):
             j.apps.cloudapi.machines.restore(machine["id"], reason, csrestore="")
         fwid = "%s_%s" % (cloudspace["gid"], cloudspace["networkId"])
         self.cb.netmgr.fw_start(fwid=fwid)
-        set_query = {"status": resourcestatus.Cloudspace.DEPLOYED, "deletionTime": 0}
-        self.models.cloudspace.updateSearch({"id": cloudspaceId}, {"$set": set_query})
+        StatusHandler(self.models.cloudspace, cloudspaceId, resourcestatus.Cloudspace.RESTORING).update_status(
+            resourcestatus.Cloudspace.DEPLOYED
+        )        
+        # set_query = {"status": resourcestatus.Cloudspace.DEPLOYED, "deletionTime": 0}
+        # self.models.cloudspace.updateSearch({"id": cloudspaceId}, {"$set": set_query})
         return True
 
     @authenticator.auth(acl={"cloudspace": set("U")})
@@ -769,7 +732,7 @@ class cloudapi_cloudspaces(BaseActor):
             cs["id"] for cs in self.models.cloudspace.search(query)[1:]
         )
 
-        # get cloudspaces access via atleast one vm
+        # get cloudspaces access via at least one vm
         q = {"acl.userGroupId": user, "status": {"$ne": "DESTROYED"}}
         query = {"$query": q, "$fields": ["cloudspaceId"]}
         cloudspaceaccess.update(

@@ -12,7 +12,7 @@ class Network(object):
             query["id"] = externalnetworkId
         for pool in self.db.cloudbroker.externalnetwork.search(query)[1:]:
             for ip in pool["ips"]:
-                res = self.models.externalnetwork.updateSearch(
+                res = self.db.cloudbroker.externalnetwork.updateSearch(
                     {"id": pool["id"]}, {"$pull": {"ips": ip}}
                 )
                 if res["nModified"] == 1:

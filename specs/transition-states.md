@@ -44,8 +44,13 @@ Prior to running any action on an OVC object we ensure that transition from the 
 |DEPLOYED / DISABLED|DELETING|DELETED|
 |DELETED| DESTROYING| DESTROYED|
 |DELETED| RESTORING | DEPLOYED|
+|DEPLOYED| PAUSING***| PAUSED*** |
+|PAUSED**| RESUMING** | DEPLOYED|
+|DEPLOYED| RESETTING** | DEPLOYED|
 
-Additional transition states
+
+** State PAUSED is reached by stopping Virtual Firewall (VFW) from cloudbroker. Pausing is an administrative action that cannot be recreated by the user, brining cloudspace back to the state DEPLOYED can be done by starting or resetting VFW by administrator.
+
 
 \* new states
 

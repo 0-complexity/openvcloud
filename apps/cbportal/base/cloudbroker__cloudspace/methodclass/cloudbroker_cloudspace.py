@@ -1,12 +1,15 @@
 from JumpScale import j
+import time
+import netaddr
 from cloudbrokerlib import authenticator, resourcestatus
 from cloudbrokerlib.authenticator import auth
 from JumpScale.portal.portal.async import async
 from cloudbrokerlib.baseactor import BaseActor
 from cloudbrokerlib import network, netmgr
-import netaddr
+from cloudbrokerlib import cloudbroker
 from JumpScale.portal.portal import exceptions
-import time
+from cloudbrokerlib.statushandler import StatusHandler
+from cloudbrokerlib.scheduler import Scheduler
 
 
 class cloudbroker_cloudspace(BaseActor):
@@ -44,7 +47,7 @@ class cloudbroker_cloudspace(BaseActor):
             raise exceptions.BadRequest("Incorrect cloudspace name specified")
         ctx = kwargs["ctx"]
         ctx.events.runAsync(
-            self._destroy,
+            self._schedule_destroy,
             args=(cloudspace, reason, permanently, ctx),
             kwargs={},
             title="Deleting Cloud Space",
@@ -52,54 +55,45 @@ class cloudbroker_cloudspace(BaseActor):
             error="Failed to delete Cloud Space",
         )
 
-    def _destroy(self, cloudspace, reason, permanently, ctx):
-        with self.models.cloudspace.lock(cloudspace["id"]):
-            cloudspace = self.models.cloudspace.get(cloudspace["id"]).dump()
-            if cloudspace["status"] == resourcestatus.Cloudspace.DEPLOYING:
-                raise exceptions.BadRequest(
-                    "Can not delete a CloudSpace that is being deployed."
-                )
-        status = cloudspace["status"]
-        cloudspace["status"] = resourcestatus.Cloudspace.DESTROYING
-        self.models.cloudspace.set(cloudspace)
-        title = "Deleting Cloud Space %(name)s" % cloudspace
-        try:
-            # delete machines
-            machine_query = {
-                "cloudspaceId": cloudspace["id"],
-                "status": {"$ne": resourcestatus.Machine.DESTROYED},
-            }
-            machines = self.models.vmachine.search(machine_query)[1:]
-            for idx, machine in enumerate(
-                sorted(machines, key=lambda m: m["cloneReference"], reverse=True)
-            ):
-                ctx.events.sendMessage(
-                    title, "Deleting Virtual Machine %s/%s" % (idx + 1, len(machines))
-                )
-                j.apps.cloudbroker.machine.destroy(machine["id"], reason, permanently)
-        except:
-            cloudspace = self.models.cloudspace.get(cloudspace["id"]).dump()
-            cloudspace["status"] = status
-            self.models.cloudspace.set(cloudspace)
-            raise
-
-        if not permanently:
-            ctx.events.sendMessage(title, "Stopping Virtual Firewall")
-            fwid = "%s_%s" % (cloudspace["gid"], cloudspace["networkId"])
-            self.cb.netmgr.fw_stop(fwid)
-            cloudspace["status"] = resourcestatus.Cloudspace.DELETED
-            current_time = int(time.time())
-            cloudspace["deletionTime"] = current_time
-            cloudspace["updateTime"] = current_time
+    def _schedule_destroy(self, cloudspace, reason, permanently, ctx):
+        if permanently:
+            transition_status = resourcestatus.Cloudspace.DESTROYING
         else:
-            # delete routeros
-            ctx.events.sendMessage(title, "Deleting Virtual Firewall")
-            self._destroyVFW(cloudspace["gid"], cloudspace["id"])
-            cloudspace = self.models.cloudspace.get(cloudspace["id"])
-            self.cb.cloudspace.release_resources(cloudspace)
-            cloudspace.status = resourcestatus.Cloudspace.DESTROYED
-            cloudspace.updateTime = int(time.time())
-        self.models.cloudspace.set(cloudspace)
+            transition_status = resourcestatus.Cloudspace.DELETING
+
+        init_state = cloudspace["status"]
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspace["id"],
+            model=self.models.cloudspace,
+            method=self._destroy,
+            init_status=init_state,
+            transition_status=transition_status,
+            reason=reason,
+            permanently=permanently,
+            cloudspace=cloudspace,
+            ctx=ctx,
+        )
+
+    def _destroy(self, cloudspaceId, reason, permanently, ctx, **kwargs):
+        # cloudspace["status"] = resourcestatus.Cloudspace.DESTROYING
+        # self.models.cloudspace.set(cloudspace)
+        title = "Deleting Cloud Space %s" % cloudspaceId
+
+        # delete machines
+        machine_query = {
+            "cloudspaceId": cloudspaceId,
+            "status": {"$ne": resourcestatus.Machine.DESTROYED},
+        }
+        machines = self.models.vmachine.search(machine_query)[1:]
+        for idx, machine in enumerate(
+            sorted(machines, key=lambda m: m["cloneReference"], reverse=True)
+        ):
+            ctx.events.sendMessage(
+                title, "Deleting Virtual Machine %s/%s" % (idx + 1, len(machines))
+            )
+            j.apps.cloudbroker.machine.destroy(machine["id"], reason, permanently)
+
+        self.cb.cloudspace.delete(cloudspaceId, permanently=permanently)
         return True
 
     @auth(groups=["level1", "level2", "level3"])
@@ -136,6 +130,16 @@ class cloudbroker_cloudspace(BaseActor):
         param:cloudspaceId id of the cloudspace
         param:targetNode name of the firewallnode the virtual firewall has to be moved to
         """
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._moveVirtualFirewallToFirewallNode,
+            targetNid=targetNid,
+            **kwargs,
+        )
+
+    def _moveVirtualFirewallToFirewallNode(self, cloudspaceId, targetNid, **kwargs):
+
         cloudspace = self._getCloudSpace(cloudspaceId)
         if cloudspace["status"] != resourcestatus.Cloudspace.DEPLOYED:
             raise exceptions.BadRequest(
@@ -331,11 +335,24 @@ class cloudbroker_cloudspace(BaseActor):
                 "Can not reset VFW which is not deployed please deploy instead."
             )
 
-        self._destroyVFW(cloudspace.gid, cloudspaceId, deletemodel=False)
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspace["id"],
+            model=self.models.cloudspace,
+            method=self._resetVFW,
+            init_status=cloudspace.status,
+            transition_status=resourcestatus.Cloudspace.RESETING,
+            cloudspace=cloudspace,
+        )
+
+    def _resetVFW(self, cloudspace, resettype, targetNid=None, **kwargs):
+        self._destroyVFW(cloudspace.gid, cloudspace.id, deletemodel=False)
         fwid = "{}_{}".format(cloudspace.gid, cloudspace.networkId)
 
         # redeploy vfw
         self.cb.netmgr.fw_start(fwid, resettype, targetNid)
+        StatusHandler(
+            self.models.cloudspace, cloudspace.id, cloudspace.status
+        ).update_status(resourcestatus.Cloudspace.DEPLOYED)
 
     @auth(groups=["level1", "level2", "level3"])
     def applyConfig(self, cloudspaceId, **kwargs):
@@ -352,30 +369,60 @@ class cloudbroker_cloudspace(BaseActor):
         # restore portforwards and leases
         self.cb.cloudspace.update_firewall(cloudspace)
 
+    @cloudbroker.CloudSpace.RequireState(
+        [resourcestatus.Cloudspace.PAUSED, resourcestatus.Cloudspace.DEPLOYED],
+        "Can only start firewall on paused cloudspace",
+    )
     @auth(groups=["level1", "level2", "level3"])
     def startVFW(self, cloudspaceId, force=False, **kwargs):
         """
         Start VFW
         param:cloudspaceId id of the cloudspace
         """
+        init_status = StatusHandler(self.models.cloudspace, cloudspaceId).status
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._startVFW,
+            init_status=init_status,
+            transition_status=resourcestatus.Cloudspace.RESUMING,
+            force=force,
+            **kwargs,
+        )
+
+    def _startVFW(self, cloudspaceId, force=False, **kwargs):
         cloudspaceobj = self._getCloudSpace(cloudspaceId)
         cloudspace = self.models.cloudspace.new()
         cloudspace.load(cloudspaceobj)
-        if cloudspace.status == resourcestatus.Cloudspace.DELETED:
-            raise exceptions.BadRequest("Selected Cloud Space is deleted")
         fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
+
         result = self.cb.netmgr.fw_start(fwid=fwid, force=force)
-        self.vfwcl.virtualfirewall.updateSearch(
-            {"guid": fwid}, {"$set": {"state": "STARTED"}}
-        )
+        StatusHandler(
+            self.models.cloudspace, cloudspaceId, cloudspace.status
+        ).update_status(resourcestatus.Cloudspace.DEPLOYED)
         return result
 
+    @cloudbroker.CloudSpace.RequireState(
+        resourcestatus.Cloudspace.DEPLOYED,
+        "Can only start firewall on paused cloudspace",
+    )
     @auth(groups=["level1", "level2", "level3"])
     def stopVFW(self, cloudspaceId, **kwargs):
         """
         Stop VFW
         param:cloudspaceId id of the cloudspace
         """
+        init_status = StatusHandler(self.models.cloudspace, cloudspaceId).status
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._stopVFW,
+            init_status=init_status,
+            transition_status=resourcestatus.Cloudspace.PAUSING,
+            **kwargs,
+        )
+
+    def _stopVFW(self, cloudspaceId, **kwargs):
         cloudspaceobj = self._getCloudSpace(cloudspaceId)
         cloudspace = self.models.cloudspace.new()
         cloudspace.load(cloudspaceobj)
@@ -384,18 +431,48 @@ class cloudbroker_cloudspace(BaseActor):
         self.vfwcl.virtualfirewall.updateSearch(
             {"guid": fwid}, {"$set": {"state": "STOPPED"}}
         )
+        StatusHandler(
+            self.models.cloudspace, cloudspaceId, cloudspace.status
+        ).update_status(resourcestatus.Cloudspace.PAUSED)
         return result
 
     @auth(groups=["level1", "level2", "level3"])
     def destroyVFW(self, cloudspaceId, **kwargs):
+        init_status = StatusHandler(self.models.cloudspace, cloudspaceId).status
+        return Scheduler.get_instance().schedule_task(
+            object_id=cloudspaceId,
+            model=self.models.cloudspace,
+            method=self._destroyVFW,
+            init_status=init_status,
+            transition_status=resourcestatus.Cloudspace.UNDEPLOYING,
+            **kwargs,
+        )
+
+    def _destroyVFW(self, cloudspaceId, **kwargs):
         cloudspaceobj = self._getCloudSpace(cloudspaceId)
         cloudspace = self.models.cloudspace.new()
         cloudspace.load(cloudspaceobj)
-        self._destroyVFW(cloudspace.gid, cloudspaceId)
+        StatusHandler(
+            self.models.cloudspace, cloudspace.id, cloudspace.status
+        ).update_status(resourcestatus.CloudSpace.PAUSING)
+        # self._destroyVFW(cloudspace.gid, cloudspace.id)
         self.cb.cloudspace.release_resources(cloudspace, False)
+
         cloudspace.status = resourcestatus.Cloudspace.VIRTUAL
         self.models.cloudspace.set(cloudspace)
         return True
+
+    # def _destroyVFW(self, gid, cloudspaceId, deletemodel=True):
+    #     fws = self.cb.netmgr.fw_list(gid=int(gid), domain=str(cloudspaceId))
+    #     if fws:
+    #         try:
+    #             self.cb.netmgr.fw_delete(
+    #                 fwid=fws[0]["guid"], deletemodel=deletemodel, timeout=20
+    #             )
+    #         except exceptions.ServiceUnavailable:
+    #             return False
+    #         return True
+    #     return False
 
     @auth(groups=["level1", "level2", "level3"])
     def changeRouterType(self, cloudspaceId, routertype, **kwargs):
@@ -420,18 +497,6 @@ class cloudbroker_cloudspace(BaseActor):
             return self.cb.netmgr.fw_start(fwid)
         return
 
-    def _destroyVFW(self, gid, cloudspaceId, deletemodel=True):
-        fws = self.cb.netmgr.fw_list(gid=int(gid), domain=str(cloudspaceId))
-        if fws:
-            try:
-                self.cb.netmgr.fw_delete(
-                    fwid=fws[0]["guid"], deletemodel=deletemodel, timeout=20
-                )
-            except exceptions.ServiceUnavailable:
-                return False
-            return True
-        return False
-
     @auth(groups=["level1", "level2", "level3"])
     def update(
         self,
@@ -443,7 +508,7 @@ class cloudbroker_cloudspace(BaseActor):
         maxNetworkPeerTransfer,
         maxNumPublicIP,
         allowedVMSizes,
-        **kwargs
+        **kwargs,
     ):
         """
         Update a cloudspace name or the maximum cloud units set on it
@@ -500,7 +565,7 @@ class cloudbroker_cloudspace(BaseActor):
         allowedVMSizes=[],
         privatenetwork=netmgr.DEFAULTCIDR,
         type="routeros",
-        **kwargs
+        **kwargs,
     ):
         """
         Create a cloudspace
