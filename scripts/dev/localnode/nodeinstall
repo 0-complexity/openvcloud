@@ -1,10 +1,19 @@
 #!/bin/bash
 set -e
 source "$(dirname $(readlink -f $0))/_functions"
-
+export LC_ALL=C
+apt-get install python-pip lsof -y
+pip install requests pyyaml click
 installovsrepo
-installjs
-ays install -n cb_cpunode_aio --hrdseed /opt/code/github/0-complexity/openvcloud/scripts/dev/localnode/cfg/node.hrd
+# installjs
+# ays install -n cb_cpunode_aio --hrdseed /opt/code/github/0-complexity/openvcloud/scripts/dev/localnode/cfg/node.hrd
+export MANIFESTURL=https://raw.githubusercontent.com/0-complexity/devmanifests/master/manifests/
+export VERSION=9.9.9
+python /opt/code/github/0-complexity/openvcloud_installer/scripts/buildlib/packager.py  --manifest /opt/code/github/0-complexity/openvcloud_installer/scripts/dockers/base/dep-manifest.yml  
+cp -r /opt/code/github/0-complexity/openvcloud_installer/scripts/dockers/cb_master/apps/* /opt/jumpscale7/cfg/
+jspython /opt/code/github/0-complexity/openvcloud_installer/scripts/install/installnode --role=cpu --masterips 172.17.1.1 --password=rooter --gid=66 --fqdn=172.17.1.1 --gwmgmt_ip=10.199.0.14/22 --vxbackend_vlan=2313 --vxbackend_ip=10.240.0.14/16 --gwmgmt_vlan=2314 --env=devsetup --client_id=greenitglobe.development.environments.local --secret=7b6nPW0EpZ3XGAPPxrs3nV8g5119yLcAmoQGUqlXn8uT_hciAIZF --grid_id=66 --ovs_url=https://172.17.1.10
+cp /opt/code/github/0-complexity/openvcloud/apps/nginx/cpunode_aio /etc/nginx/sites-enabled
+cp /opt/code/github/0-complexity/openvcloud/apps/nginx/storagedriver_aio /etc/nginx/sites-enabled
 if ! grep "^host_uuid" /etc/libvirt/libvirtd.conf > /dev/null; then
     echo "host_uuid = \"$(uuidgen)\"" >> /etc/libvirt/libvirtd.conf
 fi
@@ -12,14 +21,14 @@ systemctl enable libvirt-bin
 systemctl start libvirt-bin
 systemctl enable virtlogd
 systemctl start virtlogd
-echo "
-<network>
-       <name>gw_mgmt</name>
-       <forward mode='bridge'/>
-       <bridge name='gw_mgmt'/>
-       <virtualport type='openvswitch'/>
-   </network>
-" > /tmp/net.xml
-virsh net-define /tmp/net.xml || true
-virsh net-autostart gw_mgmt || true
-virsh net-start gw_mgmt || true
+# echo "
+# <network>
+#        <name>gw_mgmt</name>
+#        <forward mode='bridge'/>
+#        <bridge name='gw_mgmt'/>
+#        <virtualport type='openvswitch'/>
+#    </network>
+# " > /tmp/net.xml
+# virsh net-define /tmp/net.xml || true
+# virsh net-autostart gw_mgmt || true
+# virsh net-start gw_mgmt || true

@@ -18,9 +18,18 @@ apt-get install -y postfix
 systemctl enable postfix
 systemctl start postfix
 
-installjs
-ays install -n python_portal
-ays install -n cb_master_aio --hrdseed /opt/code/github/0-complexity/openvcloud/scripts/dev/localnode/cfg/masterconfig.hrd
+#installjs
+# RUN PACKAGER HERE
+export LC_ALL=C
+apt-get install python-pip nginx -y
+pip install requests pyyaml click
+export MANIFESTURL=https://raw.githubusercontent.com/0-complexity/devmanifests/master/manifests/
+export VERSION=9.9.9
+rm -fr /etc/nginx/sites-enabled/default
+cp /opt/code/github/0-complexity/openvcloud/apps/nginx/ms1_fe /etc/nginx/sites-enabled
+python /opt/code/github/0-complexity/openvcloud_installer/scripts/buildlib/packager.py  --manifest /opt/code/github/0-complexity/openvcloud_installer/scripts/dockers/cb_master/dep-manifest.yml -l
+cp -r /opt/code/github/0-complexity/openvcloud_installer/scripts/dockers/cb_master/apps/* /opt/jumpscale7/cfg/
+jspython /opt/code/github/0-complexity/openvcloud_installer/scripts/install/installnode --role=master --masterips 127.0.0.1 --password=rooter  --fqdn=172.17.1.1 --env_subdomain=devsetup --client_id=greenitglobe.development.environments.local --secret=7b6nPW0EpZ3XGAPPxrs3nV8g5119yLcAmoQGUqlXn8uT_hciAIZF --grid_id=66 --ovs_url=https://172.17.1.10
 echo "
 pcl = j.clients.portal.getByInstance('main')
 pcl.actors.cloudbroker.iaas.addExternalNetwork(name='docknet', subnet='172.17.0.0/16', gateway='172.17.0.1', startip='172.17.1.100', endip='172.17.1.120', gid=66, vlan=0)

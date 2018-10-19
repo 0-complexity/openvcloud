@@ -1,33 +1,23 @@
 #!/bin/bash
 
-export AYSBRANCH=${AYSBRANCH:-master}
 export JSBRANCH=${JSBRANCH:-master}
 export OVCBRANCH=${OVCBRANCH:-master}
 export SSHKEY=${SSHKEY:-id_rsa.pub}
 
 installjs() {
-    if [ -e "/opt/jumpscale7/hrd/system/system.hrd" ]; then
+    if [ -e "/opt/jumpscale7/cdf/system/system.yml" ]; then
         return 0
     fi
     cd /tmp;rm -f install.sh;curl -k https://raw.githubusercontent.com/Jumpscale7/jumpscale_core7/$JSBRANCH/install/install.sh > install.sh;bash install.sh
 
-    cat <<EOF > /opt/jumpscale7/hrd/system/atyourservice.hrd
-metadata.jumpscale             =
-    branch:'$AYSBRANCH',
-    url:'https://github.com/jumpscale7/ays_jumpscale7',
-
-metadata.openvcloud            =
-    branch:'$OVCBRANCH',
-    url:'https://github.com/0-complexity/openvcloud_ays',
-EOF
     md5=$(hostname -s | md5sum | awk '{print $1}')
     machineid="${md5:0:12}"
-    cat << EOF > /opt/jumpscale7/hrd/system/grid.hrd
-id                             = '66'
-node.id                        = ''
-node.machineguid               = '${machineid}'
-node.roles                     =
-     'node',
+    cat << EOF > /opt/jumpscale7/cfg/system/grid.yml
+id: 66
+node:
+  id: ''
+  machineguid: '${machineid}'
+  roles: ['node']
 
 EOF
 }
