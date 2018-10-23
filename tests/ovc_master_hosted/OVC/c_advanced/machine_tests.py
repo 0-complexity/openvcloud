@@ -16,67 +16,6 @@ class MachineTests(BasicACLTest):
         super(MachineTests, self).setUp()
         self.default_setup()
 
-    def test001_check_machines_networking(self):
-        """ OVC-038
-        *Test case for checking machines networking*
-
-        **Test Scenario:**
-
-        #. Create cloudspace CS1, should succeed.
-        #. Create cloudspace CS2, should succeed.
-        #. Create VM1 in cloudspace CS1.
-        #. Create VM2 and VM3 in cloudspace CS2.
-        #. From VM1 ping google, should succeed.
-        #. From VM1 ping VM3, should fail.
-        #. From VM2 ping VM3, should succeed.
-        """
-
-        self.lg("Create cloudspace CS1, should succeed")
-        cloudspace_1_id = self.cloudspace_id
-
-        self.lg("Create cloudspace CS2, should succeed")
-        cloudspace_2_id = self.cloudapi_cloudspace_create(
-            self.account_id, self.location, self.account_owner
-        )
-
-        self.lg("Create VM1 in cloudspace CS1")
-        machine_1_id = self.cloudapi_create_machine(cloudspace_id=cloudspace_1_id)
-        machine_1_ipaddress = self.get_machine_ipaddress(machine_1_id)
-        self.assertTrue(machine_1_ipaddress)
-        machine_1_client = VMClient(machine_1_id)
-
-        self.lg("Create VM2 in cloudspace CS2")
-        machine_2_id = self.cloudapi_create_machine(cloudspace_id=cloudspace_2_id)
-        machine_2_ipaddress = self.get_machine_ipaddress(machine_2_id)
-        self.assertTrue(machine_2_ipaddress)
-        machine_2_client = VMClient(machine_2_id)
-
-        self.lg("Create VM3 in cloudspace CS2")
-        machine_3_id = self.cloudapi_create_machine(cloudspace_id=cloudspace_2_id)
-        machine_3_ipaddress = self.get_machine_ipaddress(machine_3_id)
-        self.assertTrue(machine_3_ipaddress)
-
-        time.sleep(15)
-
-        self.lg("From VM1 ping google, should succeed")
-        stdin, stdout, stderr = machine_1_client.execute("ping -c3 8.8.8.8")
-        self.assertIn("3 received", stdout.read())
-
-        self.lg("From VM1 ping VM3 or VM2, should fail")
-        if machine_1_ipaddress == machine_2_ipaddress:
-            target_ip = machine_3_ipaddress
-        else:
-            target_ip = machine_2_ipaddress
-
-        cmd = "ping -w3 {}".format(target_ip)
-        stdin, stdout, stderr = machine_1_client.execute(cmd)
-        self.assertIn(", 100% packet loss", stdout.read())
-
-        self.lg("From VM2 ping VM3, should succeed")
-        cmd = "ping -c3 {}".format(machine_3_ipaddress)
-        stdin, stdout, stderr = machine_2_client.execute(cmd)
-        self.assertIn("3 received", stdout.read())
-
     def test002_check_network_data_integrity(self):
         """ OVC-036
         *Test case for checking network data integrity through VMS*
@@ -354,7 +293,6 @@ class MachineTests(BasicACLTest):
 
         self.lg("%s ENDED" % self._testID)
 
-    # @unittest.skip('https://github.com/0-complexity/openvcloud/issues/1113')
     def test009_restart_vm_after_migration(self):
         """ OVC_037
         *Test case for checking VM status after restarting it after migration*
@@ -491,7 +429,6 @@ class MachineTests(BasicACLTest):
                 machineId=cloned_vm_id, epoch=snapshotEpoch
             )
 
-    # @unittest.skip('https://github.com/0-complexity/openvcloud/issues/1061')
     def test011_memory_size_after_attaching_external_network(self):
         """ OVC-043
         *Test case for memory size after attaching external network*

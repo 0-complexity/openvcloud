@@ -755,39 +755,6 @@ class BasicTests(BasicACLTest):
 
         self.lg("%s ENDED" % self._testID)
 
-    def test010_enable_disable_fireWall(self):
-        """ OVC-010
-        *Test case  for testing enable and disable virtual firewall*
-
-        **Test Scenario:**
-
-        #. create a cloud space
-        #. deploy the cloud space
-        #. stop the Virtual fire wall
-        #. start the virtual fire wall
-        """
-
-        self.lg("%s STARTED" % self._testID)
-        self.lg("1- Create a new cloudspace")
-        cloudspaceId = self.cloudapi_cloudspace_create(
-            self.account_id, self.location, self.account_owner
-        )
-
-        self.lg("- deploy cloudspace, should succeed")
-        self.api.cloudapi.cloudspaces.deploy(cloudspaceId=cloudspaceId)
-        self.wait_for_status(
-            "DEPLOYED", self.api.cloudapi.cloudspaces.get, cloudspaceId=cloudspaceId
-        )
-
-        self.assertTrue(
-            self.api.cloudbroker.cloudspace.stopVFW(cloudspaceId=cloudspaceId)
-        )
-        time.sleep(60)
-        self.assertTrue(
-            self.api.cloudbroker.cloudspace.startVFW(cloudspaceId=cloudspaceId)
-        )
-        self.lg("%s ENDED" % self._testID)
-
     def test011_windowsVM_with_different_sizes(self):
         """ OVC-015
         *Test case  for testing that creating a VM with windows image must use a disksize greater than 25GB*

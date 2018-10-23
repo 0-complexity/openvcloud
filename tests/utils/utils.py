@@ -125,9 +125,9 @@ class BaseTest(unittest.TestCase):
 
     def cloudapi_cloudspace_create(
         self,
-        account_id,
-        location,
-        access,
+        account_id=None,
+        location=None,
+        access=None,
         api=None,
         name="",
         maxMemoryCapacity=-1,
@@ -135,8 +135,12 @@ class BaseTest(unittest.TestCase):
         maxCPUCapacity=-1,
         maxNumPublicIP=-1,
         allowedVMSizes=None,
+        type="routeros",
         wait=True,
     ):
+        location = location or self.location
+        account_id = account_id or self.account_id
+        access = access or self.account_owner
         api = api or self.api
         name = name or str(uuid.uuid4()).replace("-", "")[0:10]
         cloudspaceId = api.cloudapi.cloudspaces.create(
@@ -149,6 +153,7 @@ class BaseTest(unittest.TestCase):
             maxCPUCapacity=maxCPUCapacity,
             maxNumPublicIP=maxNumPublicIP,
             allowedVMSizes=allowedVMSizes,
+            type=type
         )
 
         self.assertTrue(cloudspaceId)
@@ -160,9 +165,9 @@ class BaseTest(unittest.TestCase):
 
     def cloudbroker_cloudspace_create(
         self,
-        account_id,
-        location,
-        access,
+        account_id=None,
+        location=None,
+        access=None,
         api=None,
         name="",
         maxMemoryCapacity=-1,
@@ -170,6 +175,10 @@ class BaseTest(unittest.TestCase):
         maxCPUCapacity=-1,
         maxNumPublicIP=-1,
     ):
+        location = location or self.location
+        account_id = account_id or self.account_id
+        access = access or self.account_owner
+
         if api is None:
             api = self.api
         cloudspaceId = api.cloudbroker.cloudspace.create(

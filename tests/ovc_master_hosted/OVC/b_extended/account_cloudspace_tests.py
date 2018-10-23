@@ -415,7 +415,6 @@ class ExtendedTests(BasicACLTest):
             self.lg("- expected error raised %s" % e.message)
             self.assertEqual(e.message, "400 Bad Request")
 
-    # @unittest.skip("https://github.com/0-complexity/openvcloud/issues/1269")
     def test004_getting_account_resources(self):
         """ OVC-045
         *Test case for checking account's resources retrieval*
