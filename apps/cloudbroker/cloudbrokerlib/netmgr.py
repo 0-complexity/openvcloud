@@ -370,6 +370,10 @@ class NetManager(object):
         self.osisvfw.delete(fwid)
 
     def _applyconfig(self, gid, nid, args):
+        fwobj = arg["fwobject"]
+        fwobj["leases"], fwobj["cloud-init"] = self.cb.cloudspace.get_leases_cloudinit(
+            int(fwobj["domain"])
+        )
         if args["fwobject"]["type"] == "routeros":
             job = self.cb.executeJumpscript(
                 "jumpscale", "vfs_applyconfig_routeros", gid=gid, nid=nid, args=args
@@ -434,9 +438,6 @@ class NetManager(object):
         fwobj = self._getVFWObject(fwid).obj2dict()
         self.osisvfw.updateSearch(
             {"guid": fwobj["guid"]}, {"$set": {"moddate": int(time.time())}}
-        )
-        fwobj["leases"], fwobj["cloud-init"] = self.cb.cloudspace.get_leases_cloudinit(
-            int(fwobj["domain"])
         )
         args = {"name": "%(domain)s_%(name)s" % fwobj, "fwobject": fwobj}
         return self._applyconfig(fwobj["gid"], fwobj["nid"], args)
