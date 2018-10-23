@@ -10,9 +10,8 @@ Cloud Broker Portal:/cbgrid
 }}
 
 {{grid.healthmenu}}
+{{menuadmin:}}
 {{grid.searchbox}}
-{{menuadmin:
-}}
 {{menuspaces: class:brand name:Cloudbroker%20Grid marker:$$$spaces}}
 
 @block
