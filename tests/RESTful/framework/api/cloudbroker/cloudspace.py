@@ -92,8 +92,6 @@ class Cloudspace:
             cloudspaceIds=cloudspaceIds, reason=reason
         )
 
-    def destroyVFW(self, cloudspaceId):
-        return self._api.cloudbroker.cloudspace.destroyVFW(cloudspaceId=cloudspaceId)
 
     def getVFW(self, cloudspaceId):
         return self._api.cloudbroker.cloudspace.getVFW(cloudspaceId=cloudspaceId)

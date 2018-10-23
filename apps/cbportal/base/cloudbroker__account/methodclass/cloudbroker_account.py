@@ -296,7 +296,7 @@ class cloudbroker_account(BaseActor):
             )
         cloudspaces = self.models.cloudspace.search(query)[1:]
         for cloudspace in cloudspaces:
-            j.apps.cloudbroker.cloudspace._destroy(cloudspace, reason, permanently, ctx)
+            j.apps.cloudbroker.cloudspace._schedule_destroy(cloudspace, reason, permanently, ctx)
         disks = self.models.disk.search(
             {
                 "accountId": accountId,

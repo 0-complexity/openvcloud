@@ -12,6 +12,7 @@ from JumpScale.portal.portal import exceptions
 from cloudbrokerlib import authenticator, network, resourcestatus
 from cloudbrokerlib.objectqueue import ObjectQueue
 from cloudbrokerlib.statushandler import StatusHandler
+from cloudbrokerlib.scheduler import Scheduler
 from cloudbrokerlib.baseactor import BaseActor
 from CloudscalerLibcloud.utils import ovf
 
@@ -107,8 +108,8 @@ class cloudapi_machines(BaseActor):
         True,
     )
     def start(self, machineId, **kwargs):
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._start,
             init_status=resourcestatus.Machine.HALTED,
             transition_status=resourcestatus.Machine.STARTING,
@@ -116,7 +117,7 @@ class cloudapi_machines(BaseActor):
             **kwargs
         )
 
-    def _start(self, machineId, diskId=None, **kwargs):
+    def _start(self, machineId, diskId=None, stackId=None, **kwargs):
         """
         Start the machine
 
@@ -130,7 +131,16 @@ class cloudapi_machines(BaseActor):
             j.apps.cloudbroker.machine.untag(machineId=machine.id, tagName="start")
         if machine.status not in resourcestatus.Machine.UP_STATES:
             self.cb.chooseStack(machine)
-        provider, node, machine = self.cb.getProviderAndNode(machineId)
+        if stackId:
+            activesessions = self.cb.getActiveSessionsKeys()
+            provider = self.cb.getProviderByStackId(stackId)
+            if (provider.gid, provider.id) not in activesessions:
+                raise exceptions.ServiceUnavailable(
+                    "Not enough resources available to provision the requested machine"
+            )            
+        else:
+            provider, node, machine = self.cb.getProviderAndNode(machineId)
+
         tags = j.core.tags.getObject(machine.tags)
         if diskId is not None:
             if not self.models.disk.exists(diskId):
@@ -187,8 +197,8 @@ class cloudapi_machines(BaseActor):
         """
         init_status = StatusHandler(self.models.vmachine, machineId).status
 
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._stop,
             init_status=init_status,
             transition_status=resourcestatus.Machine.STOPPING,
@@ -221,7 +231,7 @@ class cloudapi_machines(BaseActor):
         """
         # return self._action(machineId, "soft_reboot", resourcestatus.Machine.RUNNING)
         init_status = StatusHandler(self.models.vmachine, machineId).status
-        return self._schedule_task(
+        return Scheduler.get_instance().schedule_task(
             machineId=machineId,
             method=self._action,
             init_status=init_status,
@@ -245,8 +255,8 @@ class cloudapi_machines(BaseActor):
         """
         # return self._action(machineId, "hard_reboot", resourcestatus.Machine.RUNNING)
         init_status = StatusHandler(self.models.vmachine, machineId).status
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._action,
             init_status=init_status,
             transition_status=resourcestatus.Machine.RESETING,
@@ -265,8 +275,8 @@ class cloudapi_machines(BaseActor):
 
         :param machineId: id of the machine
         """
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._action,
             init_status=resourcestatus.Machine.RUNNING,
             transition_status=resourcestatus.Machine.PAUSING,
@@ -286,8 +296,8 @@ class cloudapi_machines(BaseActor):
         :param machineId: id of the machine
         """
         # return self._action(machineId, "resume", resourcestatus.Machine.RUNNING)
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._action,
             init_status=resourcestatus.Machine.PAUSED,
             transition_status=resourcestatus.Machine.RESUMING,
@@ -320,8 +330,8 @@ class cloudapi_machines(BaseActor):
 
         """
         init_status = StatusHandler(self.models.vmachine, machineId).status
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._addDisk,
             init_status=init_status,
             transition_status=resourcestatus.Machine.ADDING_DISK,
@@ -343,7 +353,6 @@ class cloudapi_machines(BaseActor):
         **kwargs
     ):
 
-        import ipdb; ipdb.set_trace()
         provider, node, machine = self.cb.getProviderAndNode(machineId)
         if len(machine.disks) >= 25:
             raise exceptions.BadRequest("Cannot create more than 25 disk on a machine")
@@ -404,8 +413,8 @@ class cloudapi_machines(BaseActor):
         """
 
         init_status = StatusHandler(self.models.vmachine, machineId).status
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._attachDisk,
             init_status=init_status,
             transition_status=resourcestatus.Machine.ATTACHING_DISK,
@@ -457,7 +466,7 @@ class cloudapi_machines(BaseActor):
             {"id": machine.id}, {"$set": {"disks": machine.disks}}
         )
         StatusHandler(self.models.disk, disk.id, disk.status).update_status(
-            resourcestatus.Disk.ASSIGNED
+            resourcestatus.Disk.ASSIGNED, force=True
         )
 
         return True
@@ -1083,49 +1092,51 @@ class cloudapi_machines(BaseActor):
                 userdata,
             )
 
-        StatusHandler(
-            self.models.vmachine, machine.id, resourcestatus.Machine.VIRTUAL
-        ).update_status(resourcestatus.Machine.DEPLOYING)
+        # StatusHandler(
+        #     self.models.vmachine, machine.id, resourcestatus.Machine.VIRTUAL
+        # ).update_status(resourcestatus.Machine.DEPLOYING)
 
-        kwargs_ctx = {"ctx": kwargs["ctx"]}
-        args = [cloudspace, machine, disksize, datadisks, image]
-        provisioning = ObjectQueue.get_instance().queue(
-            self.models.vmachine.cat,
-            machine.id,
-            self._RETRY_COUNT,
-            self.cb.machine.deploy_disks,
-            *args,
-            **kwargs_ctx
-        )
-        starting = provisioning.chain(
-            self.models.vmachine.cat,
-            machine.id,
-            self._RETRY_COUNT,
-            self._start,
-            machine.id,
-            **kwargs_ctx
+        # args = [cloudspace, machine, disksize, datadisks, image]
+        provisioning_method = {
+            "name": self.cb.machine.deploy_disks,
+            "kwargs": {
+                "cloudspace": cloudspace,
+                "machine": machine,
+                "disksize": disksize,
+                "image": image,
+                "disksize": disksize,
+                "datadisks": datadisks,
+                "ctx": kwargs['ctx']
+            },
+            "rollback": self.cb.machine.cleanup,
+            "rollback_kwargs": {
+                "machine": machine
+            }
+        }
+        starting_method = {
+            "name": self._start,
+            "kwargs": {
+                "machineId": machine.id,
+                "ctx": kwargs['ctx']
+            },
+            "rollback_method": self._delete,
+            "rollback_kwargs": {
+                "permanently": False,
+                "delete_model": True,
+            }
+        }
+        
+        
+        action = Scheduler.get_instance().schedule_task(
+            object_id=machine.id,
+            model=self.models.machine,
+            method=[provisioning_method, starting_method],
+            init_status=machine.status,
+            transition_status=resourcestatus.Machine.DEPLOYING,
         )
 
-        try:
-            starting.get_result()
+
         except Exception as e:
-            deleting = ObjectQueue.get_instance().queue(
-                self.models.vmachine.cat,
-                machine.id,
-                self._RETRY_COUNT,
-                self._delete,
-                machine.id,
-                compeletely=True,
-                **kwargs_ctx
-            )
-            cleaning_up = deleting.chain(
-                self.models.vmachine.cat,
-                machine.id,
-                self._RETRY_COUNT,
-                self.cb.machine.cleanup,
-                machine,
-                **kwargs_ctx
-            )
 
             raise
 
@@ -1136,6 +1147,25 @@ class cloudapi_machines(BaseActor):
             ctx=j.core.portal.active.requestContext,
         )
         return machine.id
+
+    def _clean_machine(self, machineId):
+        deleting = ObjectQueue.get_instance().queue(
+            self.models.vmachine.cat,
+            machine.id,
+            self._RETRY_COUNT,
+            self._delete,
+            machine.id,
+            compeletely=True,
+            **kwargs_ctx
+        )
+        cleaning_up = deleting.chain(
+            self.models.vmachine.cat,
+            machine.id,
+            self._RETRY_COUNT,
+            self.cb.machine.cleanup,
+            machine,
+            **kwargs_ctx
+        )
 
     def _prepare_machine(
         self,
@@ -1223,7 +1253,7 @@ class cloudapi_machines(BaseActor):
 
         return deleting.get_result()
 
-    def _delete(self, machineId, permanently=False, **kwargs):
+    def _delete(self, machineId, permanently=False, delete_model=False, **kwargs):
         provider, node, machine = self.cb.getProviderAndNode(machineId)
         if "name" in kwargs and kwargs["name"]:
             if machine.name != kwargs["name"]:
@@ -1317,7 +1347,7 @@ class cloudapi_machines(BaseActor):
                     # set disk to DESTROYED state
                     StatusHandler(
                         self.models.disk, disk.id, transition_disk_status
-                    ).update_status(target_disk_status)
+                    ).update_status(target_disk_status, force=True)
 
                 except Exception as e:
                     StatusHandler(self.models.disk, disk.id, disk.status).update_status(
@@ -1331,7 +1361,7 @@ class cloudapi_machines(BaseActor):
             for disk in disks:
                 StatusHandler(
                     self.models.disk, disk.id, transition_disk_status
-                ).update_status(target_disk_status)
+                ).update_status(target_disk_status, force=True)
 
         for pdisk in pdisks:
             disk_info = urlparse.urlparse(pdisk["referenceId"])
@@ -1342,7 +1372,7 @@ class cloudapi_machines(BaseActor):
             )
 
         StatusHandler(self.models.vmachine, machine.id, machine.status).update_status(
-            target_status
+            target_status, force=True
         )
         return True
 
@@ -1487,40 +1517,40 @@ class cloudapi_machines(BaseActor):
         return self.models.vmachine.get(machineId)
 
 
-    def _schedule_task(
-        self, machineId, method, init_status, transition_status, status_rollback=False, **kwargs
-    ):
-        """ Schedule task on machine
+    # def _schedule_task(
+    #     self, machineId, method, init_status, transition_status, status_rollback=False, **kwargs
+    # ):
+    #     """ Schedule task on machine
 
-            :param machineId: machine id
-            :param init_state: expected state of machine
-            :param transition_status: transition state of machine that should be set during the action 
-            :param status_rollback: if set to True rollback status to the initial status after the action is succeeded.
-                    used for actions that return machine to the same state, for example attaching/detaching disks.
-        """
-        StatusHandler(self.models.vmachine, machineId, init_status).update_status(
-            transition_status
-        )
-        action = ObjectQueue.get_instance().queue(
-            self.models.vmachine.cat,
-            machineId,
-            self._RETRY_COUNT,
-            method,
-            machineId,
-            **kwargs
-        )
-        try:
-            result = action.get_result()
-        except:
-            StatusHandler(
-                self.models.vmachine, machineId, transition_status
-            ).rollback_status(init_status)
+    #         :param machineId: machine id
+    #         :param init_state: expected state of machine
+    #         :param transition_status: transition state of machine that should be set during the action 
+    #         :param status_rollback: if set to True rollback status to the initial status after the action is succeeded.
+    #                 used for actions that return machine to the same state, for example attaching/detaching disks.
+    #     """
+    #     StatusHandler(self.models.vmachine, machineId, init_status).update_status(
+    #         transition_status
+    #     )
+    #     action = ObjectQueue.get_instance().queue(
+    #         self.models.vmachine.cat,
+    #         machineId,
+    #         self._RETRY_COUNT,
+    #         method,
+    #         machineId,
+    #         **kwargs
+    #     )
+    #     try:
+    #         result = action.get_result()
+    #     except:
+    #         StatusHandler(
+    #             self.models.vmachine, machineId, transition_status
+    #         ).rollback_status(init_status)
 
-            self.get(machineId)
-            raise
-        if status_rollback:
-            StatusHandler(self.models.vmachine, machineId, transition_status).rollback_status(init_status)
-        return result
+    #         self.get(machineId)
+    #         raise
+    #     if status_rollback:
+    #         StatusHandler(self.models.vmachine, machineId, transition_status).rollback_status(init_status)
+    #     return result
 
 
     @authenticator.auth(acl={"cloudspace": set("X")})
@@ -1535,8 +1565,8 @@ class cloudapi_machines(BaseActor):
 
         :param machineId: id of the machine
         """
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._restore,
             init_status=resourcestatus.Machine.DELETED,
             transition_status=resourcestatus.Machine.RESTORING,
@@ -1560,7 +1590,7 @@ class cloudapi_machines(BaseActor):
         for disk in machine["disks"]:
             StatusHandler(
                 self.models.disk, disk, resourcestatus.Disk.DELETED
-            ).update_status(resourcestatus.Disk.RESTORING_ATTACHED_DISK)
+            ).update_status(resourcestatus.Disk.RESTORING_ATTACHED_DISK, force=True)
         try:
             vcpus = machine["vcpus"]
             memory = machine["memory"]
@@ -1590,18 +1620,18 @@ class cloudapi_machines(BaseActor):
             for disk in machine["disks"]:
                 StatusHandler(
                     self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK
-                ).update_status(resourcestatus.Disk.ASSIGNED)
+                ).update_status(resourcestatus.Disk.ASSIGNED, force=True)
             StatusHandler(
                 self.models.vmachine, machineId, resourcestatus.Machine.RESTORING
-            ).update_status(resourcestatus.Machine.HALTED)
+            ).update_status(resourcestatus.Machine.HALTED, force=True)
         except:
             for disk in machine["disks"]:
                 StatusHandler(
                     self.models.disk, disk, resourcestatus.Disk.RESTORING_ATTACHED_DISK
-                ).rollback_status(resourcestatus.Disk.DELETED)
+                ).rollback_status(resourcestatus.Disk.DELETED, force=True)
             StatusHandler(
                 self.models.vmachine, machineId, resourcestatus.Machine.RESTORING
-            ).rollback_status(resourcestatus.MAchine.DELETED)
+            ).rollback_status(resourcestatus.MAchine.DELETED, force=True)
             raise
 
         return True
@@ -1762,8 +1792,8 @@ class cloudapi_machines(BaseActor):
 
         init_status = StatusHandler(self.models.vmachine, machineId).status
 
-        return self._schedule_task(
-            machineId=machineId,
+        return Scheduler.get_instance().schedule_task(
+            object_id=machineId,
             method=self._clone,
             init_status=init_status,
             transition_status=resourcestatus.Machine.CLONING,
@@ -1912,7 +1942,6 @@ class cloudapi_machines(BaseActor):
             volumes = provider.ex_clone_disks(diskmapping, disks_snapshots or {})
             self.cb.machine.update_volumes(clone, volumes)
             self.models.vmachine.set(clone)
-            import ipdb; ipdb.set_trace()
             StatusHandler(self.models.vmachine, clone.id, clone.status).update_status(resourcestatus.Machine.STARTING)
             self._start(clone.id)
         except:

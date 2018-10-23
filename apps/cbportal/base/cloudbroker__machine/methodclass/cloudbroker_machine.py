@@ -1,12 +1,14 @@
+import gevent
+import netaddr
+import time
 from JumpScale import j
 from cloudbrokerlib import authenticator, resourcestatus
 from cloudbrokerlib.authenticator import auth
 from cloudbrokerlib.baseactor import BaseActor
 from JumpScale.portal.portal.async import async
 from JumpScale.portal.portal import exceptions
-import gevent
-import netaddr
-import time
+from cloudbrokerlib.statushandler import StatusHandler
+from cloudbrokerlib.scheduler import Scheduler
 
 
 class cloudbroker_machine(BaseActor):
@@ -97,9 +99,29 @@ class cloudbroker_machine(BaseActor):
                 userdata,
             )
 
-        self.cb.machine.deploy_disks(
-            cloudspace, machine, disksize, datadisks, image
+        StatusHandler(
+            self.models.vmachine, machine.id, resourcestatus.Machine.VIRTUAL
+        ).update_status(resourcestatus.Machine.DEPLOYING)
+        kwargs_ctx = {"ctx": kwargs["ctx"]}
+        args = [cloudspace, machine, disksize, datadisks, image]
+        provisioning = Scheduler.get_instance().schedule_task(
+            self.models.vmachine.cat,
+            machine.id,
+            self.cb.machine.deploy_disks,
+            *args,
+            **kwargs_ctx
         )
+        starting = provisioning.chain(
+            self.models.vmachine.cat,
+            machine.id,
+            self._start,
+            machine.id,
+            **kwargs_ctx
+        )
+
+        # self.cb.machine.deploy_disks(
+        #     cloudspace, machine, disksize, datadisks, image
+        # )
         j.apps.cloudapi.machines.start(machine.id)
         gevent.spawn(
             self.cb.cloudspace.update_firewall,

@@ -33,14 +33,26 @@ class StatusHandler(object):
             )
         return obj["status"]
 
-    def update_status(self,  target_status):
+    def validate_status(self):
+        """ ensure object not in a transition status nor invalid
+        """
+        if self.status in self.object_class.TRANSITION_STATES + self.object_class.INVALID_STATES:
+            raise exceptions.BadRequest("Cannot schedule action on item ID {} of type {} when in status {}".format(
+                    self.id, self.category, self.status
+                )
+            )
+
+    def update_status(self,  target_status, force=False):
         """ update status of an object in db
             
-            :param object_id: id of the object
             :param target_status: update status
+            :param force: if force, status can be set without checks
         """
-        self.validate_transition(target_status)
+        if not force:
+            self.validate_status()
+            self.validate_transition(target_status)
         self._update_status(target_status)
+
 
     def rollback_status(self, previous_status):
         """ roll back status of an object in db
@@ -61,8 +73,8 @@ class StatusHandler(object):
 
         if not result["nModified"]:
             raise exceptions.BadRequest(
-                "Failed to update status of item ID {} in collection {} from {} to {}, status was set incorrectly or modified by another process".format(
-                    self.id, self.category, self.status, target_status,
+                "Failed to update status of {} ({}) from {} to {}, status was modified by another process".format(
+                    self.category, self.id, self.status, target_status,
                 )
             )
         if result["nModified"] > 1:

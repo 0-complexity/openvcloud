@@ -563,42 +563,45 @@ class CloudSpace(object):
         
         StatusHandler(
             models.cloudspace, cloudspaceId, transition_status
-        ).update_status(target_status)
+        ).update_status(target_status, force=True)
 
         return True
 
 
-    def release_resources(self, cloudspace, releasenetwork=True):
-        #  delete routeros
+    def release_resources(self, cloudspace, releasenetwork=True, deletemodel=True):
+        #  delete routerOS
         fwguid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
         try:
             fw = self.cb.netmgr._getVFWObject(fwguid)
         except exceptions.ServiceUnavailable:
             pass
         else:
+            fw_listed = self.cb.netmgr.fw_list(gid=int(cloudspace.gid), domain=str(cloudspace.id))
             stack = next(
                 iter(
                     models.stack.search({"referenceId": str(fw.nid), "gid": fw.gid})[1:]
                 ),
                 None,
             )
-            if stack and stack["status"] != "DECOMISSIONED":
+            if stack and stack["status"] != "DECOMISSIONED" and fw_listed:
                 # destroy vm and model
-                self.cb.netmgr.fw_delete(fwguid)
+                self.cb.netmgr.fw_delete(fwguid, deletemodel)
             else:
                 # destroy model only
-                self.cb.netmgr.fw_destroy(fwguid)
-        if cloudspace.networkId and releasenetwork:
-            j.apps.libcloud.libvirt.releaseNetworkId(
-                cloudspace.gid, cloudspace.networkId
-            )
-            cloudspace.networkId = None
-        if cloudspace.externalnetworkip:
-            self.network.releaseExternalIpAddress(
-                cloudspace.externalnetworkId, cloudspace.externalnetworkip
-            )
-            cloudspace.externalnetworkip = None
-        return cloudspace
+                if deletemodel:
+                    self.cb.netmgr.fw_destroy(fwguid)
+
+            if cloudspace.networkId and releasenetwork:
+                j.apps.libcloud.libvirt.releaseNetworkId(
+                    cloudspace.gid, cloudspace.networkId
+                )
+                cloudspace.networkId = None
+            if cloudspace.externalnetworkip:
+                self.network.releaseExternalIpAddress(
+                    cloudspace.externalnetworkId, cloudspace.externalnetworkip
+                )
+                cloudspace.externalnetworkip = None
+            return cloudspace
 
     def get_leases_cloudinit(self, cloudspaceId):
         leases = []
@@ -749,6 +752,7 @@ class Machine(object):
         )[1:]
         if results:
             raise exceptions.Conflict("Selected name already exists")
+
 
     def destroy_machine(self, machineId, provider=None):
         """

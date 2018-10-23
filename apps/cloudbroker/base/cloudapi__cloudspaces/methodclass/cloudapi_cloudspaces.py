@@ -29,11 +29,7 @@ class cloudapi_cloudspaces(BaseActor):
         super(cloudapi_cloudspaces, self).__init__()
         self.libvirt_actor = j.apps.libcloud.libvirt
         self.netmgr = self.cb.netmgr
-        self._minimum_days_of_credit_required = float(
-            self.hrd.get(
-                "instance.openvcloud.cloudbroker.creditcheck.daysofcreditrequired"
-            )
-        )
+
 
     @authenticator.auth(acl={"cloudspace": set("U")})
     def addUser(self, cloudspaceId, userId, accesstype, explicit=True, **kwargs):
@@ -122,7 +118,6 @@ class cloudapi_cloudspaces(BaseActor):
             useracl = cloudspace_acl[userId]
         else:
             raise exceptions.NotFound("User does not have any access rights to update")
-
         if "account_right" in useracl and set(accesstype) == set(
             useracl["account_right"]
         ):
@@ -440,14 +435,13 @@ class cloudapi_cloudspaces(BaseActor):
                     {
                         "$set": {
                             "externalnetworkip": None,
-                            "status": resourcestatus.Cloudspace.VIRTUAL,
                         }
                     },
                 )
                 raise
 
-            StatusHandler(self.models.cloudspace, cs.id, cs.status).update_status(
-                resourcestatus.Cloudspace.DEPLOYED
+            StatusHandler(self.models.cloudspace, cs.id, resourcestatus.Cloudspace.DEPLOYING).update_status(
+                resourcestatus.Cloudspace.DEPLOYED, force=True
             )
 
             return resourcestatus.Cloudspace.DEPLOYED
@@ -516,12 +510,9 @@ class cloudapi_cloudspaces(BaseActor):
         fwid = "%s_%s" % (cloudspace.gid, cloudspace.networkId)
         self.netmgr.fw_stop(fwid)
         StatusHandler(self.models.cloudspace, cloudspaceId, resourcestatus.Cloudspace.DISABLING).update_status(
-            resourcestatus.Cloudspace.DISABLED
+            resourcestatus.Cloudspace.DISABLED, force=True
         )
-        # self.models.cloudspace.updateSearch(
-        #     {"id": cloudspaceId},
-        #     {"$set": {"status": resourcestatus.Cloudspace.DISABLED}},
-        # )
+
         return True
 
 
@@ -548,7 +539,7 @@ class cloudapi_cloudspaces(BaseActor):
         cloudspace = self.models.cloudspace.get(cloudspaceId)
         self.netmgr.fw_start(cloudspace.networkId)
         StatusHandler(self.models.cloudspace, cloudspaceId, resourcestatus.Cloudspace.ENABLING).update_status(
-            resourcestatus.Cloudspace.DEPLOYED
+            resourcestatus.Cloudspace.DEPLOYED, force=True
         )
         # self.models.cloudspace.updateSearch(
         #     {"id": cloudspaceId},
@@ -655,7 +646,7 @@ class cloudapi_cloudspaces(BaseActor):
         fwid = "%s_%s" % (cloudspace["gid"], cloudspace["networkId"])
         self.cb.netmgr.fw_start(fwid=fwid)
         StatusHandler(self.models.cloudspace, cloudspaceId, resourcestatus.Cloudspace.RESTORING).update_status(
-            resourcestatus.Cloudspace.DEPLOYED
+            resourcestatus.Cloudspace.DEPLOYED, force=True
         )        
         # set_query = {"status": resourcestatus.Cloudspace.DEPLOYED, "deletionTime": 0}
         # self.models.cloudspace.updateSearch({"id": cloudspaceId}, {"$set": set_query})
