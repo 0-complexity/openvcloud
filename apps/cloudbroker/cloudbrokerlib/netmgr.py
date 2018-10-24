@@ -370,7 +370,7 @@ class NetManager(object):
         self.osisvfw.delete(fwid)
 
     def _applyconfig(self, gid, nid, args):
-        fwobj = arg["fwobject"]
+        fwobj = args["fwobject"]
         fwobj["leases"], fwobj["cloud-init"] = self.cb.cloudspace.get_leases_cloudinit(
             int(fwobj["domain"])
         )
