@@ -174,6 +174,7 @@ class BaseTest(unittest.TestCase):
         maxDiskCapacity=-1,
         maxCPUCapacity=-1,
         maxNumPublicIP=-1,
+        wait=True,
     ):
         location = location or self.location
         account_id = account_id or self.account_id
@@ -192,9 +193,10 @@ class BaseTest(unittest.TestCase):
             maxNumPublicIP=maxNumPublicIP,
         )
         self.assertTrue(cloudspaceId)
-        self.wait_for_status(
-            "DEPLOYED", api.cloudapi.cloudspaces.get, cloudspaceId=cloudspaceId
-        )
+        if wait:
+            self.wait_for_status(
+                "DEPLOYED", api.cloudapi.cloudspaces.get, cloudspaceId=cloudspaceId
+            )
         return cloudspaceId
 
     def cloudbroker_account_create(

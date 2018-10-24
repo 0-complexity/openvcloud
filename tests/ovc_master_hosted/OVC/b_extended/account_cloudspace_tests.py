@@ -7,9 +7,10 @@ import zipfile
 from xlrd import open_workbook
 from io import BytesIO
 from ....utils.utils import BasicACLTest
+from multiprocessing import Process, Value
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
-
+from JumpScale import j
 
 class ExtendedTests(BasicACLTest):
     def setUp(self):
@@ -690,3 +691,48 @@ class ExtendedTests(BasicACLTest):
             os.system("rm -rf {}/resource_mang".format(os.getcwd()))
 
         self.lg("%s ENDED" % self._testID)
+
+    def test05_concurrent_create_cloudspace_with_account_resourcelimit(self):
+        """ OVC-46
+        *Test case for creating machines concurrently with resource limiting, meant to trigger double spending*
+
+        **Test Scenario:**
+
+        #. Create account (AC1) with only 1 available public ip.
+        #. Requesting creation of 5 cloudspaces concurrently.
+        #. Only one cloudspace should be created.
+        """
+
+        def concurrent_create_cloudspace(account_id):
+            try:
+                self.cloudapi_cloudspace_create(account_id=account_id)
+            except HTTPError as err:
+                if err.status_code == 400:
+                    return
+                raise
+
+        ccl = j.clients.osis.getNamespace('cloudbroker')
+        self.lg("Create account (AC1) with only 1 available public ip")
+        self.account_id = self.cloudbroker_account_create(
+            self.account_owner,
+            self.account_owner,
+            self.email,
+            maxNumPublicIP=1,
+        )
+
+        procs = []
+        for _ in range(5):
+            proc = Process(target=concurrent_create_cloudspace, args=(self.account_id,))
+            procs.append(proc)
+
+        self.lg("Requesting creation of 5 cloudspaces concurrently")
+        for proc in procs:
+            proc.start()
+
+        for proc in procs:
+            proc.join()
+        
+        self.lg("Only one cloudspace should be created")
+        created_cloudspaces = ccl.cloudspace.count({"accountId":self.account_id})
+        self.assertEqual(created_cloudspaces, 1)
+
