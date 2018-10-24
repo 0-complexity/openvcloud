@@ -105,15 +105,15 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 apt-get install apt-transport-https
 apt-get update
-apt-get install libltdl7 aufs-tools
-apt-get install docker-ce=18.03.0~ce-0~ubuntu
+apt-get install libltdl7 aufs-tools docker-ce=18.03.0~ce-0~ubuntu
 ```
 
 For more details about the `ìnstaller` script see [Installer Script Details](Installer-script.md).
 
 Run the following command to start the cluster installation:
 ```bash
-docker run -it --rm -e ENV_OVC_VERSION={version} openvcloud/ninstaller
+export version=2.4.6
+docker run -it --rm -e ENV_OVC_VERSION=${version} openvcloud/ninstaller:${version}
 ```
 
 This will result in the following prompt:
