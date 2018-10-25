@@ -4,7 +4,7 @@ import random
 import unittest
 import uuid
 from socket import error as VMConnectionError
-from ....utils.utils import BasicACLTest, VMClient
+from ....utils.utils import BasicACLTest
 from JumpScale import j
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
@@ -578,9 +578,7 @@ class Write(ACLCLOUDSPACE):
         )
 
         self.lg("Try to connect to the virtual machine (VM1), should succeed")
-        machine_client = VMClient(machine_id, port=public_port)
-        stdin, stdout, stderr = machine_client.execute("hostname")
-        self.assertEqual("vm-{}".format(machine_id), stdout.read().strip())
+        self.assertTrue(self.check_vm(machine_id, port=public_port))
 
         self.lg("4- Update portforwarding with new ports")
         portforwarding_id = portforwarding[0]["id"]
@@ -623,15 +621,13 @@ class Write(ACLCLOUDSPACE):
         self.assertEqual(int(portforwarding[0]["localPort"]), vm_port)
 
         self.lg("Try to connect to the virtual machine (VM1), should succeed")
-        machine_client = VMClient(machine_id, port=new_public_port)
-        stdin, stdout, stderr = machine_client.execute("hostname")
-        self.assertEqual("vm-{}".format(machine_id), stdout.read().strip())
+        self.assertTrue(self.check_vm(machine_id, port=new_public_port))
 
         self.lg(
             "Try to connect to the virtual machine (VM1) using the old public port, should fail"
         )
-        with self.assertRaises(VMConnectionError) as e:
-            VMClient(machine_id, port=public_port, timeout=5)
+        
+        self.assertFalse(self.check_vm(machine_id, port=public_port, timeout=5))
 
         # skip https://github.com/0-complexity/openvcloud/issues/606
         # self.lg('5- try update port with non vaild port')

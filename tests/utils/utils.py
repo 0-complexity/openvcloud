@@ -940,6 +940,12 @@ class BaseTest(unittest.TestCase):
         else:
             raise NameError("Node result state is not OK")
 
+    def check_vm(self, machineId, **kwargs):
+        machine = self.api.cloudapi.machines.get(machineId=machineId)
+        macaddress = machine["nics"][0]["macAddress"]
+        client = VMClient(machineId, **kwargs)
+        exitcode, _, _ = client.execute("ip a | grep {}".format(macaddress))
+        return True if exitcode == 0 else False
 
 class BasicACLTest(BaseTest):
     def setUp(self):
@@ -1078,12 +1084,13 @@ class VMClient:
     def execute(self, cmd, timeout=None, sudo=False, wait=True):
         if sudo and self.login != "root":
             cmd = 'echo "{}" | sudo -S {}'.format(self.password, cmd)
-
-        stdin, stdout, stderr = self.client.exec_command(
+        
+        _, stdout, stderr = self.client.exec_command(
             cmd, timeout=timeout, get_pty=True
         )
 
+        exitcode = None
         if wait:
-            stdout.channel.recv_exit_status()
+            exitcode = stdout.channel.recv_exit_status()
 
-        return stdin, stdout, stderr
+        return exitcode, stdout, stderr

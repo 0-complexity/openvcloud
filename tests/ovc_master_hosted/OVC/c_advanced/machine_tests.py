@@ -90,9 +90,7 @@ class MachineTests(BasicACLTest):
         self.assertTrue(response.get("received"))
 
         self.lg("Check that you can connect to vm with new ip ,should succeed")
-        vm1_client = VMClient(vm1_id, external_network=True)
-        stdin, stdout, stderr = vm1_client.execute("ls /")
-        self.assertIn("bin", stdout.read())
+        self.assertTrue(self.check_vm(vm1_id, external_network=True))
 
     # @unittest.skip('https://github.com/0-complexity/openvcloud/issues/1113')
     def test004_migrate_vm_in_middle_of_writing_file(self):
@@ -140,9 +138,7 @@ class MachineTests(BasicACLTest):
         self.lg("Make sure that VM1 is running.")
         self.assertEqual(vm1["status"], "RUNNING")
         t.join()
-        vm1_client = VMClient(vm1_id)
-        stdin, stdout, stderr = vm1_client.execute("ls /")
-        self.assertIn("bin", stdout.read())
+        self.assertTrue(self.check_vm(vm1_id))
 
         self.lg("Check if the file has been written correctly after vm live migration")
         stdin, stdout, stderr = vm1_client.execute(
@@ -328,9 +324,7 @@ class MachineTests(BasicACLTest):
         self.assertEqual(
             self.api.cloudapi.machines.get(machineId=vm1_id)["status"], "RUNNING"
         )
-        vm1_client = VMClient(vm1_id)
-        stdin, stdout, stderr = vm1_client.execute("ls /")
-        self.assertIn("bin", stdout.read())
+        self.assertTrue(self.check_vm(vm1_id))
 
         self.lg("Restart VM1 and make sure it is still running.")
         self.api.cloudapi.machines.reboot(machineId=vm1_id)
@@ -338,9 +332,7 @@ class MachineTests(BasicACLTest):
         self.assertEqual(
             self.api.cloudapi.machines.get(machineId=vm1_id)["status"], "RUNNING"
         )
-        vm1_client = VMClient(vm1_id)
-        stdin, stdout, stderr = vm1_client.execute("ls /")
-        self.assertIn("bin", stdout.read())
+        self.assertTrue(self.check_vm(vm1_id))
 
         self.lg("%s ENDED" % self._testID)
 
@@ -711,8 +703,8 @@ class MachineTests(BasicACLTest):
         self.lg(
             "Check that you can't connect to VM1 with it's new ext network ip, should succeed"
         )
-        with self.assertRaises(socket.error):
-            VMClient(vm1_id, ip=cs_ip, external_network=True, timeout=1)
+        self.assertFalse(self.check_vm(ip=cs_ip, external_network=True, timeout=5))
+
         self.lg("%s ENDED" % self._testID)
 
     def test016_resize_disk_online(self):
@@ -1028,9 +1020,7 @@ class MachineTests(BasicACLTest):
             self.assertEqual(moved_vfw["status"], "RUNNING")
 
             self.lg("Try to connect to the virtual machine VM1, should succeed")
-            vm_client = VMClient(machine_id)
-            _, stdout, _ = vm_client.execute("hostname")
-            self.assertEqual(stdout.read().split(), "vm-{}".format(machine_id))
+            self.assertTrue(self.check_vm(machine_id))
 
         finally:
             self.api.cloudbroker.node.applyIpmiAction(nid=vfw["nid"], action="power_on")
@@ -1069,9 +1059,7 @@ class MachineTests(BasicACLTest):
             self.assertEqual(machine_info["status"], "RUNNING")
 
             self.lg("Try to connect to the virtual machine VM1, should succeed")
-            vm_client = VMClient(machine_id)
-            _, stdout, _ = vm_client.execute("hostname")
-            self.assertEqual(stdout.read().split(), "vm-{}".format(machine_id))
+            self.assertTrue(self.check_vm(machine_id))
 
         finally:
             self.api.cloudbroker.node.applyIpmiAction(nid=nid, action="power_on")

@@ -92,9 +92,7 @@ class CloudspaceBasicTests(BasicACLTest):
         self.assertEqual(vfw["status"], "RUNNING")
 
         self.lg("Try to connect to vm (VM1), should succeed")
-        machine_client = VMClient(machineId)
-        _, stdout, _ = machine_client.execute("hostname")
-        self.assertEqual("vm-{}".format(machineId), stdout.read().strip())
+        self.assertTrue(self.check_vm(machineId))
 
         self.lg("%s ENDED" % self._testID)
 
@@ -145,9 +143,7 @@ class CloudspaceBasicTests(BasicACLTest):
         self.assertEqual(vfw["status"], "RUNNING")
 
         self.lg("Try to connect to vm (VM1), should succeed")
-        machine_client = VMClient(machineId)
-        _, stdout, _ = machine_client.execute("hostname")
-        self.assertEqual("vm-{}".format(machineId), stdout.read().strip())
+        self.assertTrue(self.check_vm(machineId))
 
         self.lg("%s ENDED" % self._testID)
 
@@ -200,9 +196,7 @@ class CloudspaceBasicTests(BasicACLTest):
         )
 
         self.lg("Try to connect to vm (VM1), should succeed")
-        machine_client = VMClient(machineId)
-        _, stdout, _ = machine_client.execute("hostname")
-        self.assertEqual("vm-{}".format(machineId), stdout.read().strip())
+        self.assertTrue(self.check_vm(machineId))
 
         self.lg("%s ENDED" % self._testID)
 
@@ -250,9 +244,7 @@ class CloudspaceBasicTests(BasicACLTest):
             cloudspaceId, script=script
         )
         self.lg("Try to connect to virtual machine (VM1) through PF1, should succeed")
-        machine_client = VMClient(machine_id, port=public_port)
-        _, stdout, _ = machine_client.execute("uname")
-        self.assertIn("Linux", stdout.read())
+        self.assertTrue(self.check_vm(machine_id, port=public_port))
 
         self.lg("Reset cloudspace (CS1)'s vfw, should succeed")
         self.api.cloudbroker.cloudspace.resetVFW(
@@ -261,8 +253,8 @@ class CloudspaceBasicTests(BasicACLTest):
         self.lg(
             "Try to connect to virtual machine (VM1) through portforward (PF1), should fail"
         )
-        with self.assertRaises(socket.error):
-            VMClient(machine_id, port=public_port, timeout=5)
+        
+        self.assertFalse(self.check_vm(machine_id, port=public_port, timeout=5))
 
         self.lg("Destroy cloudspace (CS1)'s vfw")
         self.api.cloudbroker.cloudspace.destroyVFW(cloudspaceId=cloudspaceId)
@@ -306,9 +298,7 @@ class CloudspaceBasicTests(BasicACLTest):
             self.assertEqual(vfw["type"], "vgw")
 
             self.lg("Try to connect to vm (VM1), should succeed")
-            machine_client = VMClient(machineId)
-            _, stdout, _ = machine_client.execute("hostname")
-            self.assertEqual("vm-{}".format(machineId), stdout.read().strip())
+            self.assertTrue(self.check_vm(machineId))
 
         else:
             with self.assertRaises(ApiError):
@@ -487,16 +477,10 @@ class CloudspaceBasicTests(BasicACLTest):
         self.assertDictEqual(portforwarding_info, vm2_pf_info)
 
         self.lg("Try to connect to vm (VM1), should succeed")
-        machine_client = VMClient(machine_1_Id, port=2201)
-        _, stdout, _ = machine_client.execute("hostname")
-        self.assertEqual("vm-{}".format(machine_1_Id), stdout.read().strip())
-
+        self.assertTrue(self.check_vm(machine_1_Id, port=2201))
 
         self.lg("Try to connect to vm (VM2), should succeed")
-        machine_client = VMClient(machine_2_Id, port=2202)
-        _, stdout, _ = machine_client.execute("hostname")
-        self.assertEqual("vm-{}".format(machine_2_Id), stdout.read().strip())
-
+        self.assertTrue(self.check_vm(machine_2_Id, port=2202))
 
     @parameterized.expand(["routeros", "vgw"])
     def test001_check_machines_networking(self, cs_type):

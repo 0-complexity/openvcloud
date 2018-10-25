@@ -1,6 +1,6 @@
 import unittest
 from nose_parameterized import parameterized
-from ....utils.utils import BasicACLTest, VMClient
+from ....utils.utils import BasicACLTest
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
 import random, uuid

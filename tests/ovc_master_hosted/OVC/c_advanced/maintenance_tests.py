@@ -1,5 +1,5 @@
 import unittest
-from ....utils.utils import BasicACLTest, VMClient
+from ....utils.utils import BasicACLTest
 from nose_parameterized import parameterized
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
@@ -166,9 +166,8 @@ class MaintenanceTests(BasicACLTest):
             )
             
             self.lg("Check that the running VM is working well, should succeed")
-            machine_1_client = VMClient(machine_1_id)
-            stdin, stdout, stderr = machine_1_client.execute("uname")
-            self.assertIn("Linux", stdout.read())
+            self.assertTrue(self.check_vm(machine_1_id))
+
         else:
             self.wait_for_status(
                 "HALTED",

@@ -1,6 +1,6 @@
 # coding=utf-8
 import unittest, socket, random
-from ....utils.utils import BasicACLTest, VMClient
+from ....utils.utils import BasicACLTest
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
 from JumpScale import j
@@ -185,9 +185,7 @@ class CloudspaceTests(BasicACLTest):
         )
 
         self.lg("Connect to VM1 through PF1 , should succeed")
-        vm1_client = VMClient(vm_id, port=pb_port)
-        _, stdout, _ = vm1_client.execute("uname")
-        self.assertIn("Linux", stdout.read())
+        self.assertTrue(self.check_vm(vm_id, port=pb_port))
 
         self.lg("%s ENDED" % self._testID)
 

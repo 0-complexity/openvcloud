@@ -3,7 +3,7 @@ import unittest
 import uuid
 import random
 import time
-from ....utils.utils import BasicACLTest, VMClient
+from ....utils.utils import BasicACLTest
 from nose_parameterized import parameterized
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
