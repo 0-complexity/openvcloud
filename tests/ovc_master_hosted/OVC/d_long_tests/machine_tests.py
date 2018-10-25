@@ -3,9 +3,11 @@ from ....utils.utils import BasicACLTest, VMClient, execute_async_ovc
 from nose_parameterized import parameterized
 from JumpScale.portal.portal.PortalClient2 import ApiError
 from JumpScale.baselib.http_client.HttpClient import HTTPError
+from JumpScale import j
 import time
 import threading
 import os, requests
+import json
 import gevent
 
 
@@ -31,6 +33,10 @@ class MachineLongTests(BasicACLTest):
         #. Check that file (F1) exists in the imported virtual machine.
         #. Check that file (F2) exists in the imported virtual machine's data disk (DD1).
         """
+        scl = j.clients.osis.getNamespace("system")
+        grid = scl.grid.get(j.application.whoAmI.gid)
+        ovs_cred = grid.settings["ovs_credentials"]
+        ovs = j.clients.openvstorage.get(ips=ovs_cred["ips"], credentials=(ovs_cred["client_id"], ovs_cred["client_secret"]))
         self.lg("Create virtual machine (VM1), should succeed")
         machine_1_id = self.cloudapi_create_machine(self.cloudspace_id)
 
@@ -71,6 +77,7 @@ class MachineLongTests(BasicACLTest):
 
         self.lg("Create folder in owncloud")
         requests.request("MKCOL", url=folder_url, auth=owncloud_auth)
+        disks = [disk for disk in machine_1_client.machine["disks"] if disk["type"] != "M" ]
 
         try:
             self.lg("Export virtual machine (VM1), should succeed")
@@ -83,6 +90,13 @@ class MachineLongTests(BasicACLTest):
             )
 
             self.assertTrue(response)
+
+            for disk in disks:
+                query = dict(type="AND", items=[("name", "EQUALS", "export/clonefordisk_{}".format(disk["referenceId"].split("@")[1]))])
+                result = ovs.get(
+                    "/vdisks", params=dict(contents="name,devicename", query=json.dumps(query))
+                )
+                self.assertEqual(result['data'], [])
 
             time.sleep(300)
 

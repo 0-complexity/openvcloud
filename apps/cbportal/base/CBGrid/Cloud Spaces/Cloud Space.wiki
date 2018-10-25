@@ -186,6 +186,7 @@ h3. Details
 |*Cloud Space ID*|$$id|
 |*Account*|[${accountname}|account?id=${accountId}]|
 |*Network ID*|[${networkId}|private network?id=${networkId}&gid=${gid}]|
+|*Type*| ${type}|
 {% if type == 'routeros' -%}
 |*Defense Shield*| {{defenseshield: cloudspaceId:$$id}} |
 {% endif -%}

@@ -434,7 +434,7 @@ class CSLibvirtNodeDriver(object):
             cacheratio = 20
         vpoolname, edgeclients = self.getBestVpool(vpool)
         edgeclient = self.getNextEdgeClient(vpoolname, edgeclients)
-        diskname = "volumes/volume_{}".format(name) if vpool == "data" else name
+        diskname = "volumes/volume_{}".format(name) if type not in ["B", "M", "C"] else name
         kwargs = {
             "ovs_connection": self.ovs_connection,
             "vpoolguid": edgeclient["vpoolguid"],

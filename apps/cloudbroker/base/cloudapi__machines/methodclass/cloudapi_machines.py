@@ -1118,7 +1118,7 @@ class cloudapi_machines(BaseActor):
         disks = self.models.disk.search(
             {
                 "$query": diskquery,
-                "$fields": ["status", "type", "name", "descr", "acl", "sizeMax", "id"],
+                "$fields": ["status", "type", "name", "descr", "acl", "sizeMax", "id", "referenceId"],
             }
         )[1:]
         storage = sum(disk["sizeMax"] for disk in disks)

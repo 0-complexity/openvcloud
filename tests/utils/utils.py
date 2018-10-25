@@ -116,6 +116,7 @@ class BaseTest(unittest.TestCase):
                 access=self.account_owner,
                 api=self.account_owner_api,
                 name="default",
+                type="vgw"
             )
 
     def acl_setup(self, create_default_cloudspace=True):
