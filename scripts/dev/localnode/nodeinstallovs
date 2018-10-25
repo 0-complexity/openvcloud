@@ -45,8 +45,7 @@ cat << EOF > /opt/OpenvStorage/config/preconfig.json
 }}                             
 EOF
 ovs setup
-jspython /opt/code/github/0-complexity/openvcloud_installer/scripts/install/installnode --role=storage --masterips 172.17.1.1 --password=rooter --gid=66 --fqdn=172.17.1.1 --gwmgmt_ip=10.199.0.14/22 --vxbackend_vlan=2313 --vxbackend_ip=10.240.0.14/16 --gwmgmt_vlan=2314 --env=devsetup --client_id=greenitglobe.development.environments.local --secret=7b6nPW0EpZ3XGAPPxrs3nV8g5119yLcAmoQGUqlXn8uT_hciAIZF --grid_id=66 --ovs_url=https://172.17.1.10
-jspython /opt/code/github/0-complexity/openvcloud/scripts/ovs/alba-create-user.py
+jspython /opt/code/github/0-complexity/openvcloud_installer/scripts/install/installnode --role=storage --masterips 172.17.1.1 --password=rooter --gid=66 --fqdn=172.17.1.1 --gwmgmt_ip=10.199.0.14/22 --vxbackend_vlan=2313 --vxbackend_ip=10.240.0.14/16 --gwmgmt_vlan=2314 --env=devsetup --client_id=greenitglobe.development.environments.local --secret=7b6nPW0EpZ3XGAPPxrs3nV8g5119yLcAmoQGUqlXn8uT_hciAIZF --ovs_url=https://172.17.1.10
 jspython /opt/code/github/0-complexity/openvcloud/scripts/dev/localnode/setupovs.py
 echo "
 portal_config = j.core.config.get('portal_client', 'main')
