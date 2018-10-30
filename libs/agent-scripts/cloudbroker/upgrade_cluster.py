@@ -78,6 +78,20 @@ def action():
         ):
             volume["gitRepo"]["revision"] = str(get_revision(branch, tag))
             break
+    _, output = j.system.process.execute("kubectl --kubeconfig /root/.kube/config get configmap system-config -o yaml")
+    output = yaml.load(output)
+    file_key = output["data"].keys()[0]
+    config = yaml.load(output["data"][file_key])
+    rsgt_server = config["docker_registry"]["server"]
+    for conttype in ("initContainers", "containers"):
+        if conttype not in upgrader_data["spec"]["template"]["spec"]:
+            continue
+        for container in upgrader_data["spec"]["template"]["spec"][conttype]:
+            container["image"] = "{}/{}:{}".format(
+                rsgt_server,
+                container["image"],
+                manifest["images"][container["image"]],
+            )
     try:
         with open("/tmp/upgrader-job.yaml", "w+") as file_descriptor:
             yaml.dump(upgrader_data, file_descriptor)

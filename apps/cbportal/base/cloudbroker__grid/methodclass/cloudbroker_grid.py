@@ -193,6 +193,33 @@ class cloudbroker_grid(BaseActor):
             raise exceptions.BadRequest(
                 "settings needs to be in valid YAML format and needs to be an object"
             )
+        rgst_data = settings.get("docker_registry")
+        if not rgst_data:
+            raise exceptions.BadRequest("Need to specify private docker registry data(docker_registry: username, password, server)")
+        current_settings = self.sysmodels.grid.searchOne({"id": id})
+        curr_rgst_data = current_settings.get("settings", {}).get("docker_registry", {})
+        if rgst_data != curr_rgst_data:
+            if "https:" in rgst_data["server"]:
+                raise exceptions.BadRequest("Docker registry server shouldn't contain the server protocol")
+            auth = requests.auth.HTTPBasicAuth(rgst_data["username"], rgst_data["password"])
+            try:
+                res = requests.get("https://{}/v2".format(rgst_data["server"]), auth=auth)
+            except requests.ConnectionError:
+                try:
+                    res = requests.get("http://{}/v2".format(rgst_data["server"]), auth=auth)
+                except requests.ConnectionError:
+                    raise exceptions.BadRequest("Can't connect to specified registry server")
+            if res.status_code != 200:
+                raise exceptions.BadRequest("Docker registry credentials not valid")
+            jobinfo = self.cb.executeJumpscript(
+                "greenitglobe",
+                "update_env_config",
+                role="controllernode",
+                gid=j.application.whoAmI.gid,
+                args={"data": {"docker_registry": rgst_data}},
+            )
+            if jobinfo["state"] != "OK":
+                raise exceptions.ServiceUnavailable("Couldn't update system config with docker registry data")
         self.sysmodels.grid.updateSearch({"id": id}, {"$set": {"settings": settings}})
         return "Changing settings done successfully"
 
