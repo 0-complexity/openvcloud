@@ -914,14 +914,8 @@ class CSLibvirtNodeDriver(object):
         name = "vm-%s" % vmid
         volumes = []
         for i, disk in enumerate(disks):
-            path = disk["path"]
-            parsedurl = urlparse.urlparse(path)
-            if parsedurl.netloc == "":
-                path = path.replace(
-                    "{}:".format(parsedurl.scheme), "{}://".format(parsedurl.scheme)
-                )
             volume = OpenvStorageVolume(
-                id="%s@%s" % (path, disk["guid"]),
+                id=disk["referenceId"],
                 name="N/A",
                 size=disk["size"],
                 driver=self,

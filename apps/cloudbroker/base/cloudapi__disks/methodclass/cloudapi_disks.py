@@ -102,6 +102,7 @@ class cloudapi_disks(BaseActor):
         physicalSource=None,
         nid=None,
         order=None,
+        devicename=None,
         **kwargs
     ):
         if size > 2000 and type != "P":
@@ -131,7 +132,7 @@ class cloudapi_disks(BaseActor):
                 disk.referenceId = volumeid
                 volume = self.getStorageVolume(disk, provider)
             else:
-                volume = provider.create_volume(disk.sizeMax, disk.id)
+                volume = provider.create_volume(disk.sizeMax, devicename or disk.id)
                 volume.iotune = disk.iotune
                 disk.referenceId = volume.id
             disk.status = resourcestatus.Disk.CREATED

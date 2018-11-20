@@ -1,5 +1,6 @@
 from xml.etree import ElementTree
 from jinja2 import Environment, FunctionLoader
+import os
 from StringIO import StringIO
 
 SIZES = {
@@ -104,11 +105,17 @@ def ovf_to_model(ovf):
         for i in itemobjs
         if _findsubitem(i, "ResourceType").text == "4"
     ][0]
+    raw = True
+    for disk in diskitems:
+        if os.path.splitext(disk["file"])[1] != ".raw":
+            raw = False
+            break
     return {
         "name": name,
         "description": description,
         "cpus": cpus,
         "mem": mem,
+        "raw": raw,
         "disks": diskitems,
     }
 
@@ -132,7 +139,7 @@ def template(name):
   <DiskSection>
     <Info>List of the virtual disks used in the package</Info>
     <Disk ovf:capacity="{{disk.size}}" ovf:diskId="vmdisk{{loop.index0}}" ovf:fileRef="file{{loop.index0}}"
-     ovf:format="http://www.vmware.com/specifications/vmdk.html#sparse"/>
+     ovf:format="http://www.vmware.com/specifications/raw.html"/>
   </DiskSection>
   {% endfor %}
   <NetworkSection>

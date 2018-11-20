@@ -4,23 +4,26 @@ descr = """
 Follow up creation of export
 """
 
-name = "cloudbroker_export"
 category = "cloudbroker"
 organization = "greenitglobe"
 author = "jo@gig.tech"
 license = "bsd"
 version = "1.0"
+roles = ["node"]
 queue = "io"
 async = True
 timeout = 60 * 60 * 24
 
 
-def action(link, username, passwd, path, envelope, disks):
+def action(link, username, passwd, path, machine):
     import subprocess
 
-    diskparam = " ".join([disk.replace("://", ":") for disk in disks])
-
+    diskparams = []
+    for disk in machine["disks"]:
+        diskparams.append(disk["referenceId"].replace("://", ":").rsplit("@", 1)[0])
+    diskparam = " ".join(diskparams)
     fullurl = "{}/{}".format(link.rstrip("/"), path.lstrip("/"))
+
     cmd = [
         "/opt/jumpscale7/bin/impexp",
         "-disk",
@@ -31,15 +34,13 @@ def action(link, username, passwd, path, envelope, disks):
         username,
         "-password",
         passwd,
-        "-ovf",
-        envelope,
         "-action",
-        "export",
+        "import",
     ]
     exporter = subprocess.Popen(cmd, stderr=subprocess.PIPE)
     err = exporter.stderr.read()
     if exporter.wait() != 0:
-        raise RuntimeError("Failed to export cmd {}\nOutput: {}".format(cmd, err))
+        raise RuntimeError("Failed to import cmd {}\nOutput: {}".format(cmd, err))
 
 
 if __name__ == "__main__":
@@ -52,6 +53,4 @@ if __name__ == "__main__":
     parser.add_argument("-url", "--url")
     parser.add_argument("-path", "--path")
     options = parser.parse_args()
-    action(
-        options.url, options.user, options.password, options.path, "xml", options.disk
-    )
+    action(options.url, options.user, options.password, options.path, options.disk)

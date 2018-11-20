@@ -496,7 +496,8 @@ class cloudapi_machines(BaseActor):
     def syncImportOVF(
         self,
         uploaddata,
-        envelope,
+        machine,
+        jobargs,
         cloudspace,
         name,
         description,
@@ -506,6 +507,7 @@ class cloudapi_machines(BaseActor):
         memory=None,
         sizeId=None,
         ctx=None,
+        stack=None,
     ):
         try:
             error = False
@@ -513,8 +515,6 @@ class cloudapi_machines(BaseActor):
 
             vm = self.models.vmachine.new()
             vm.cloudspaceId = cloudspace.id
-
-            machine = ovf.ovf_to_model(envelope)
 
             vm.name = name
             vm.descr = description
@@ -545,46 +545,49 @@ class cloudapi_machines(BaseActor):
 
             totaldisksize = 0
             bootdisk = None
-            for i, diskobj in enumerate(machine["disks"]):
-                disk = self.models.disk.new()
-                disk.gid = cloudspace.gid
-                disk.order = i
-                disk.accountId = cloudspace.accountId
-                disk.type = "B" if i == 0 else "D"
-                disk.sizeMax = int(math.ceil(diskobj["size"] / 1024. ** 3))
-                totaldisksize += disk.sizeMax
-                disk.name = diskobj["name"]
-                diskid = self.models.disk.set(disk)[0]
-                if i == 0:
-                    bootdisk = disk
-                vm.disks.append(diskid)
-                diskobj["id"] = diskid
-                diskobj["path"] = "disk-%i.vmdk" % i
-            # Validate that enough resources are available in the CU limits to clone the machine
-            size = {"memory": memory, "vcpus": vcpus}
-            j.apps.cloudapi.cloudspaces.checkAvailableMachineResources(
-                cloudspace.id, vcpus, memory / 1024.0, totaldisksize
-            )
-
             vm.id = self.models.vmachine.set(vm)[0]
-            stack = self.cb.getBestStack(cloudspace.gid, vm.imageId, memory=memory)
-            provider = self.cb.getProviderByStackId(stack["id"])
-
-            machine["id"] = vm.id
-
-            # the disk objects in the machine gets changed in the jumpscript and a guid is added to them
-            jobargs = uploaddata.copy()
-            jobargs["machine"] = machine
-            machine = self.acl.execute(
-                "greenitglobe",
-                "cloudbroker_import",
-                gid=cloudspace.gid,
-                role="storagedriver",
-                timeout=3600,
-                args=jobargs,
-            )
+            volumes = []
             try:
-                provider.ex_extend_disk(machine["disks"][0]["guid"], bootdisk.sizeMax)
+                for i, diskobj in enumerate(machine["disks"]):
+                    sizeMax = int(math.ceil(diskobj["size"] / 1024.0 ** 3))
+                    dtype = "B" if i == 0 else "D"
+                    devicename = None
+                    if dtype == "B":
+                        devicename = "vm-{0}/bootdisk-vm-{0}".format(vm.id)
+                    disk, volume = j.apps.cloudapi.disks._create(
+                        cloudspace.accountId,
+                        cloudspace.gid,
+                        diskobj["name"],
+                        diskobj["name"],
+                        sizeMax,
+                        dtype,
+                        order=i,
+                        devicename=devicename,
+                    )
+                    volumes.append(volume)
+                    totaldisksize += disk.sizeMax
+                    if i == 0:
+                        bootdisk = disk
+                    vm.disks.append(disk.id)
+                    diskobj["id"] = disk.id
+                    diskobj["referenceId"] = disk.referenceId
+                # Validate that enough resources are available in the CU limits to clone the machine
+                size = {"memory": memory, "vcpus": vcpus}
+                j.apps.cloudapi.cloudspaces.checkAvailableMachineResources(
+                    cloudspace.id, vcpus, memory / 1024.0, totaldisksize
+                )
+
+                stack = self.cb.getBestStack(cloudspace.gid, vm.imageId, memory=memory)
+                provider = self.cb.getProviderByStackId(stack["id"])
+
+                machine["id"] = vm.id
+
+                jobparams = uploaddata.copy()
+                jobparams["machine"] = machine
+                jobargs["args"] = jobparams
+                self.acl.execute(**jobargs)
+                bootdiskguid = bootdisk.referenceId.split("@")[-1]
+                provider.ex_extend_disk(bootdiskguid, bootdisk.sizeMax)
                 node = provider.ex_import(
                     size, vm.id, cloudspace.networkId, machine["disks"]
                 )
@@ -592,7 +595,7 @@ class cloudapi_machines(BaseActor):
                 stack_model.load(stack)
                 self.cb.machine.updateMachineFromNode(vm, node, stack_model)
             except:
-                self.cb.machine.cleanup(vm)
+                self.cb.machine.cleanup(vm, cloudspace.gid, volumes)
                 raise
             gevent.spawn(
                 self.cb.cloudspace.update_firewall,
@@ -620,9 +623,12 @@ class cloudapi_machines(BaseActor):
                 ]
             else:
                 requests.get(callbackUrl)
+        finally:
+            if stack:
+                self.cb.releaseImportExportWorker(stack)
 
     def syncExportOVF(
-        self, uploaddata, vm, provider, cloudspace, user, callbackUrl, ctx=None
+        self, uploaddata, stack, vm, provider, cloudspace, user, callbackUrl, ctx=None
     ):
         try:
             error = False
@@ -646,18 +652,18 @@ class cloudapi_machines(BaseActor):
             try:
                 disknames = [volume.id.split("@")[0] for volume in volumes]
                 osname = self.models.image.get(vm.imageId).name
-                os = re.match("^[a-zA-Z]+", osname).group(0).lower()
+                vmos = re.match("^[a-zA-Z]+", osname).group(0).lower()
                 envelope = ovf.model_to_ovf(
                     {
                         "name": vm.name,
                         "description": vm.descr,
                         "cpus": vm.vcpus,
                         "mem": vm.memory,
-                        "os": os,
+                        "os": vmos,
                         "osname": osname,
                         "disks": [
                             {
-                                "name": "disk-%i.vmdk" % i,
+                                "name": "disk-%i.raw" % i,
                                 "size": disk["sizeMax"] * 1024 * 1024 * 1024,
                             }
                             for i, disk in enumerate(disks)
@@ -700,6 +706,8 @@ class cloudapi_machines(BaseActor):
             else:
                 requests.get(callbackUrl)
             raise
+        finally:
+            self.cb.releaseImportExportWorker(stack)
 
     def _validate_links(self, **kwargs):
         """
@@ -715,7 +723,9 @@ class cloudapi_machines(BaseActor):
                 raise exceptions.BadRequest(
                     "{} parameter only supports https links".format(name)
                 )
-            if ":" in parsed.netloc or "@" in parsed.netloc:
+            if (
+                ":" in parsed.netloc or "@" in parsed.netloc
+            ) and j.core.portal.active.secure:
                 raise exceptions.BadRequest(
                     "Non standard ports or embedded authentication is not supported for the {} parameter".format(
                         name
@@ -800,11 +810,29 @@ class cloudapi_machines(BaseActor):
             raise exceptions.BadRequest(
                 "cannot pass vcpus or memory without the other."
             )
+        machine = ovf.ovf_to_model(job["result"])
+        jumpscript = (
+            "cloudbroker_import_raw" if machine["raw"] else "cloudbroker_import"
+        )
+        jobargs = {
+            "organization": "greenitglobe",
+            "name": jumpscript,
+            "gid": cloudspace.gid,
+            "timeout": 7200,
+            "queue": "io",
+        }
+        stack = None
+        if machine["raw"]:
+            stack = self.cb.getImportExportWorker(cloudspace.gid)
+            jobargs["nid"] = int(stack["referenceId"])
+        else:
+            jobargs["role"] = "storagedriver"
 
         gevent.spawn(
             self.syncImportOVF,
             uploaddata,
-            job["result"],
+            machine,
+            jobargs,
             cloudspace,
             name,
             description,
@@ -814,6 +842,7 @@ class cloudapi_machines(BaseActor):
             memory,
             sizeId,
             ctx=ctx,
+            stack=stack,
         )
 
     @authenticator.auth(acl={"machine": set("X")})
@@ -860,9 +889,11 @@ class cloudapi_machines(BaseActor):
             except:
                 msg = "Failed to upload to link"
             raise exceptions.BadRequest(msg)
+        stack = self.cb.getImportExportWorker(cloudspace.gid)
         gevent.spawn(
             self.syncExportOVF,
             uploaddata,
+            stack,
             vm,
             provider,
             cloudspace,
@@ -1114,7 +1145,16 @@ class cloudapi_machines(BaseActor):
         disks = self.models.disk.search(
             {
                 "$query": diskquery,
-                "$fields": ["status", "type", "name", "descr", "acl", "sizeMax", "id"],
+                "$fields": [
+                    "status",
+                    "type",
+                    "name",
+                    "descr",
+                    "acl",
+                    "sizeMax",
+                    "id",
+                    "referenceId",
+                ],
             }
         )[1:]
         storage = sum(disk["sizeMax"] for disk in disks)
@@ -1883,7 +1923,7 @@ class cloudapi_machines(BaseActor):
 
         cloudspace = self.models.cloudspace.get(vmachine.cloudspaceId)
         with self.models.account.lock(cloudspace.accountId):
-            deltamemory = max(deltamemorymb / 1024., 0)
+            deltamemory = max(deltamemorymb / 1024.0, 0)
             j.apps.cloudapi.cloudspaces.checkAvailableMachineResources(
                 vmachine.cloudspaceId, numcpus=deltacpu, memorysize=deltamemory
             )

@@ -6,6 +6,7 @@ import time
 import urlparse
 import subprocess
 import tempfile
+from glob import glob
 
 sys.path.append("/opt/OpenvStorage")
 from ovs.lib.vdisk import VDiskController
@@ -162,6 +163,8 @@ def getUrlPath(path, vpoolname=VPOOLNAME):
     if ext != ".raw":
         newpath = path
     newpath = newpath.strip("/")
+    if newpath.startswith("mnt/"):
+        newpath = "/".join(newpath.split("/")[2:])
     if not storageip:
         raise RuntimeError("Could not find edge connection")
     return "openvstorage+{protocol}://{ip}:{port}/{name}".format(
@@ -221,14 +224,9 @@ def copyImage(srcpath):
 
 def importVolume(srcpath, destpath, data=False):
     srcpath = getOpenvStorageURL(srcpath)
-    if data:
-        desturl = getUrlPath(destpath, vpoolname=None)
-    else:
-        desturl = getUrlPath(destpath, vpoolname=VPOOLNAME)
+    desturl = getOpenvStorageURL(destpath)
     ovsdest = getOpenvStorageURL(desturl)
-    j.system.platform.qemu_img.convert(srcpath, None, ovsdest, "raw")
-    disk = getVDisk(desturl, timeout=60)
-    return disk.guid, ovsdest
+    j.system.platform.qemu_img.convert(srcpath, None, ovsdest, "raw", createTarget=False)
 
 
 def exportVolume(srcpath, destpath):
@@ -237,6 +235,29 @@ def exportVolume(srcpath, destpath):
         srcpath.replace("://", ":", 1), None, destpath, "vmdk"
     )
     return destpath
+
+
+class Rawdevice(object):
+    def __init__(self, url):
+        self.url = getOpenvStorageURL(url)
+        self.device = None
+        if not j.system.fs.exists("/sys/module/nbd/"):
+            j.system.process.execute("modprobe nbd")
+
+    def __enter__(self):
+        for nbddevice in glob("/dev/nbd*"):
+            exitcode, _ = j.system.process.execute(
+                "qemu-nbd -c {} -f raw {}".format(nbddevice, self.url),
+                dieOnNonZeroExitCode=True,
+            )
+            if exitcode == 0:
+                self.device = nbddevice
+                return self
+        raise RuntimeError("Could not find available nbd device")
+
+    def __exit__(self, *args, **kwargs):
+        if self.device:
+            j.system.process.execute("qemu-nbd -d {}".format(self.device))
 
 
 class TempStorage(object):

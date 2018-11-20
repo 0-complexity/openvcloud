@@ -27,6 +27,7 @@ ujson = j.db.serializers.ujson
 models = j.clients.osis.getNamespace("cloudbroker")
 sysmodels = j.clients.osis.getNamespace("system")
 _providers = dict()
+_importexportworkers = set()
 
 
 def CloudProvider(stackId):
@@ -200,6 +201,18 @@ class CloudBroker(object):
         raise exceptions.ServiceUnavailable(
             "No available node with specified resources"
         )
+
+    def getImportExportWorker(self, gid):
+        with models.stack.lock("import_export"):
+            stack = self.getBestStack(gid, excludelist=_importexportworkers)
+            _importexportworkers.add(stack["id"])
+        return stack
+    
+    def releaseImportExportWorker(self, stack):
+        try:
+            _importexportworkers.remove(stack["id"])
+        except KeyError:
+            pass
 
     def getNode(self, machine, driver=None):
         image = models.image.get(machine.imageId)
