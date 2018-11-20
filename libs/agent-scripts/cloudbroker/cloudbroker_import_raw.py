@@ -23,9 +23,15 @@ def action(link, username, passwd, path, machine):
         diskparams.append(disk["referenceId"].replace("://", ":").rsplit("@", 1)[0])
     diskparam = " ".join(diskparams)
     fullurl = "{}/{}".format(link.rstrip("/"), path.lstrip("/"))
+    binarypath = "/opt/jumpscale7/bin/impexp"
+    if not j.system.fs.exists(binarypath):
+        j.system.net.download(
+            "ftp://pub:pub1234@ftp.gig.tech/patches/impexp", binarypath
+        )
+        j.system.fs.chmod(binarypath, 0o755)
 
     cmd = [
-        "/opt/jumpscale7/bin/impexp",
+        binarypath,
         "-disk",
         diskparam,
         "-url",

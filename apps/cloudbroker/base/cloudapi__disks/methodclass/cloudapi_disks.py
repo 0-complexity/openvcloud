@@ -132,7 +132,8 @@ class cloudapi_disks(BaseActor):
                 disk.referenceId = volumeid
                 volume = self.getStorageVolume(disk, provider)
             else:
-                volume = provider.create_volume(disk.sizeMax, devicename or disk.id)
+                data = type == "D"
+                volume = provider.create_volume(disk.sizeMax, devicename or disk.id, data)
                 volume.iotune = disk.iotune
                 disk.referenceId = volume.id
             disk.status = resourcestatus.Disk.CREATED
