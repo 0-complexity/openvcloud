@@ -209,6 +209,17 @@ class cloudbroker_grid(BaseActor):
                     res = requests.get("http://{}/v2".format(rgst_data["server"]), auth=auth)
                 except requests.ConnectionError:
                     raise exceptions.BadRequest("Can't connect to specified registry server")
+            if res.status_code == 401:
+                header = res.headers.get('Www-Authenticate', '')
+                if header.lower().startswith('bearer '):
+                    parts = header[len('Bearer '):].split(",")
+                    info = {}
+                    for part in parts:
+                        key, value = part.split("=", 1)
+                        info[key] = value.strip('"')
+                    if 'realm' in info:
+                        realm = info.pop('realm')
+                        res = requests.get(realm, params=info, auth=auth)
             if res.status_code != 200:
                 raise exceptions.BadRequest("Docker registry credentials not valid")
             jobinfo = self.cb.executeJumpscript(
